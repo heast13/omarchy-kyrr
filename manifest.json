@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "heast13.kyrr",
+  "name": "kyrr",
+  "version": "1.0.0",
+  "author": "heast13",
+  "license": "MIT",
+  "description": "kyrr in the bar: local noise suppression and dictation. A menu with kyrr's switches, and it installs kyrr when it is missing.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "kyrr",
+    "description": "Shows when kyrr listens, writes or records. Click: kyrr's menu (noise filter, voice, dictation, recordings, settings, quit). Middle click: dictate.",
+    "category": "Audio",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}
