@@ -17,6 +17,8 @@ install -m 755 "$app" "$HOME/.local/bin/kyrr.new"
 mv -f "$HOME/.local/bin/kyrr.new" "$HOME/.local/bin/kyrr"
 
 echo "== Plugin, Zweig rebuild"
+# The test plugin under its old id goes.
+omarchy plugin remove heast13.kyrr --yes >/dev/null 2>&1 || true
 dir="$HOME/.config/omarchy/plugins/io.github.heast13.kyrr"
 if [[ ! -d $dir/.git ]]; then
   omarchy plugin add https://github.com/heast13/omarchy-kyrr.git --yes
