@@ -99,20 +99,34 @@ Needs a kyrr newer than 0.6.2.
 
 `v` (2), `pid` (kyrr's process id), `mode` (`idle`, `listening`, `writing`, `recording`), `lang`
 (`de`, `en`: the menu's language), `version`, `line` (the status line),
-`note` and `noteGood`, `pulse` (`working`, `waiting` or `""`: the little wave after the line), `setupDone`, `setupStep` (1 to 3), `news` (what this
-version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
-`listen`, and:
+`note` and `noteGood`, `alert` (4: the microphone is muted), `overloadNote`
+(`""`, `switched`, `pauses`), `oldCpu`, `levels` (`active`, `before`,
+`after`: the meters, 0 to 1), `pulse` (`working`, `waiting` or `""`: the
+little wave after the line), `setupDone`, `setupStep` (1 to 3), `news` (what
+this version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
+`probeError`, `listen`, and:
 
 - `filter`: `on`, `strength` (0 to 2), `attached` (on a microphone), `setup` (`""`, `settingUp`, `error`,
-  `unsupported`), `error`
+  `unsupported`), `error`, `state` (`running`, `checking`, `off`,
+  `passthrough`, `notAttached`, `notInstalled`, `settingUp`, `error`,
+  `detached`, `unsupported`), `mic`, `moveTo` and `moveUnplugged` (the
+  microphone the system switched to)
 - `voice`: `on`, `tone` (`neutral`, `warm`, `clear`, `bright`, `custom`),
   `body`, `presence`, `air` (dB, −6 to 6), `comp`, `ess` (0 to 3), `rumble`,
-  `rumbleHz`, `pops`, `distance`, `autoLevel`, `levelDb` (null while off)
-- `dictation`: `on`, `ready`, `key`, `hold`, `note`
-- `memos`: `on`, `recording`, `key`, `hold`, `autoText`, `folder`, `message`,
-  `list` (newest first: `id` = file name, `title`, `when`, `length`,
-  `pending`, `text` = `none`/`writing`/`ready`/`failed`, `progress`, `left`,
-  `isNew`, and `transcript` for the one asked for with `memo show`)
+  `rumbleHz`, `pops`, `distance`, `autoLevel`, `levelDb` (null while off),
+  `isDefault`
+- `dictation`: `on`, `ready`, `key`, `hold`, `note`, `state` (`off`,
+  `noModel`, `downloading`, `loading`, `ready`, `recording`, `transcribing`,
+  `error`), `message`, `keyCustom`, `keyFixed`, `keyUnbound`, `keyButton`
+- `memos`: `on`, `recording`, `elapsed`, `key`, `keyCustom`, `keyNote`,
+  `hold`, `canHold`, `autoText`, `canWrite`, `folder`, `message`, `query`,
+  `count` (all, found or not), `playTime` and `playFraction` (the one
+  playing), `list` (newest first, as the search finds them: `id` = file
+  name, `title`, `when`, `length`, `pending`, `text` =
+  `none`/`writing`/`ready`/`failed`, `waiting`, `progress`, `left`, `isNew`,
+  `playing`), `sheet` (null, or the recording opened with `memo show <id>`:
+  `id`, `title`, `when`, `stamps` (0 off, 1 position, 2 time of day),
+  `saved`, `copied`, `empty`, `here` (where "Play from here" starts))
 - `general`: `language` (`de`, `en`, `multi`), `effort` (`lean`, `best`,
   `custom`), `liveText`, `overload`, `updateCheck`
 - `mic`: `name` and `current` (name and list `id` of the one in use, -1 for
@@ -121,21 +135,33 @@ version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
 - `model`: `state` (`off`, `none`, `downloading`, `loading`, `ready`,
   `error`), `progress`, `size`
 - `update`: `state` (`idle`, `checking`, `latest`, `available`, `failed`,
-  `downloading`), `version`, `progress`, `news`
+  `downloading`), `phase` (`""`, `installing`, `downloadFailed`), `version`,
+  `progress`, `news`, `installable`, `dismissed`
+
+The text of the recording in `sheet` is in `$XDG_RUNTIME_DIR/kyrr/sheet`,
+as kyrr's text view shows it (with the chosen stamps). What the menu types
+into it goes to `$XDG_RUNTIME_DIR/kyrr/edit`; kyrr takes that file with
+`memo edit` and before `memo copy|here|stamps|opentext`.
 
 ### Commands
 
 - `toggle filter|voice|dictation|memos|voice.rumble|voice.pops|voice.distance|voice.autoLevel|memos.autoText|general.liveText|general.overload|general.updateCheck|listen`
 - `set filter.strength <0-2>`, `set voice.tone <name>`,
   `set voice.body|presence|air <dB>`, `set voice.comp|ess <0-3>`,
-  `set dictation.key|memos.key <keysym name>` (F1 to F24, Pause,
-  Scroll_Lock, Control_R, Menu), `set dictation.hold|memos.hold true|false`,
+  `set voice.reset`, `set dictation.key|memos.key <keysym name>` (F1 to
+  F24, Pause, Scroll_Lock, Control_R, Menu), `set dictation.keyReset|memos.keyReset`,
+  `set dictation.hold|memos.hold true|false`,
   `set general.language de|en|multi`, `set general.effort lean|best`
-- `mic <id>` (first-run setup: picks it; else: moves the filter to it)
-- `memo start|stop|folder|seen`, `memo play|text|delete <id>`,
-  `memo show [<id>]`
-- `model download|cancel|retry`, `test start|before|after`,
-  `update check|install`, `setup next|skip|done`, `open feedback`
+- `mic <id>` (first-run setup: picks it; else: moves the filter to it),
+  `mic unmute|repair|default`
+- `memo start|stop|folder|seen|edit|opentext`,
+  `memo play|text|cancel|reveal|delete <id>`, `memo show [<id>]`,
+  `memo rename ["<id>","<title>"]`, `memo search [<words>]`,
+  `memo copy <from> <to>` (UTF-8 byte offsets in the text, both 0 for all),
+  `memo cursor|here <offset>`, `memo stamps <0-2>`
+- `model download|cancel|retry`, `test start|before|after|delete`,
+  `update check|install|dismiss|page`, `setup next|skip|done|keybutton|overloadSeen`,
+  `open feedback|licenses`
 - Also: `dictate`, `menu-open` (every few seconds while the menu is open:
   kyrr keeps its status line, notes and meters going), `menu-closed`
 

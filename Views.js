@@ -8,7 +8,10 @@
 //   slider   a number from `min` to `max`, ← → move it by `step`
 //   key      a key to press, Enter starts listening for it
 //   action   does `cmd`, or opens `page`
-//   memo     a recording: Enter plays it, → shows its text, x deletes it
+//   memo     a recording: Enter or a click plays it, → or its arrow shows
+//            its text, x or its bin deletes it
+//   edit     a line to type into (search, a title); Enter starts typing
+//   editor   the text of a recording, to read, correct and select
 //   section  a heading, never selected
 //   info     a line of text, never selected
 //   progress a bar from 0 to 1, never selected
@@ -19,7 +22,7 @@ var GLYPH = {
   stop: 0xF04DB, recordings: 0xF1359, update: 0xF01DA, setup: 0xF066A,
   install: 0xF01DA, mic: 0xF036C, folder: 0xF0770, play: 0xF040A,
   check: 0xF02CB, about: 0xF02FD, news: 0xF0EBB, feedback: 0xF0361,
-  next: 0xF0142
+  next: 0xF0142, search: 0xF0349, copy: 0xF018F, file: 0xF0219, trash: 0xF01B4
 }
 
 function pick(list, index) {
@@ -39,28 +42,105 @@ function named(t, keys) {
   return list
 }
 
+// What the filter says on the main page and its own: switched on or off,
+// or why it cannot run.
+function filterCaption(k, t) {
+  var f = k.filter
+  switch (f.state) {
+  case "settingUp": return t("filterSettingUp")
+  case "passthrough": return t("filterPassthrough")
+  case "notAttached": return t("filterNoMic")
+  case "notInstalled": return t("filterNotInstalled")
+  case "unsupported": return t("filterNoPipewire")
+  case "detached": return t("filterDetached", f.mic)
+  default: return t(f.on ? "filterOn" : "filterOff")
+  }
+}
+
+// What the filter needs from you: a microphone, a repair, the microphone
+// your system switched to.
+function filterHelp(k, t) {
+  var f = k.filter
+  var rows = []
+  if (f.state === "notAttached")
+    rows.push({ kind: "action", id: "setUpMic", icon: GLYPH.mic, label: t("setUpMic"), page: "mic", accent: true })
+  if (f.state === "detached")
+    rows.push({ kind: "action", id: "repair", icon: GLYPH.update, label: t("repair"), cmd: "mic repair", accent: true })
+  if (f.moveTo) {
+    rows.push({ kind: "info", label: t(f.moveUnplugged ? "micUnplugged" : "micSwitched") })
+    rows.push({ kind: "action", id: "moveTo", icon: GLYPH.mic, label: t("useInstead", f.moveTo), cmd: "mic default" })
+  }
+  return rows
+}
+
+// What dictation needs from you: another try, your desktop's OK for the key.
+function dictationHelp(k, t) {
+  var d = k.dictation
+  var rows = []
+  if (d.state === "error")
+    rows.push({ kind: "action", id: "dictationRetry", icon: GLYPH.update, label: t("tryAgain"),
+      caption: d.message || "", cmd: "model retry" })
+  else if (d.message) rows.push({ kind: "info", label: d.message })
+  if (d.state === "ready" && d.keyUnbound) {
+    rows.push({ kind: "info", label: t("keyUnbound", d.key) })
+    if (d.keyButton) rows.push({ kind: "action", id: "keyButton", icon: GLYPH.dictation, label: d.keyButton, cmd: "setup keybutton" })
+  }
+  return rows
+}
+
+// A new version: install it (or where to get it), what is new, not now.
+function updateRows(k, t, always) {
+  var u = k.update
+  var rows = []
+  if (u.state === "downloading")
+    rows.push(u.phase === "installing" ? { kind: "info", label: t("installing") }
+      : { kind: "progress", label: t("downloadingUpdate", Math.round((u.progress || 0) * 100)), value: u.progress || 0 })
+  else if ((u.state === "available" || u.phase === "downloadFailed") && (always || !u.dismissed)) {
+    var failed = u.phase === "downloadFailed"
+    if (u.installable)
+      rows.push({ kind: "action", id: "update", icon: GLYPH.update, accent: true,
+        label: failed ? t("tryAgain") : t("update", u.version),
+        caption: failed ? t("updateFailed") : t("updateOut", u.version), cmd: "update install" })
+    else
+      rows.push({ kind: "info", label: t("updateElsewhere", u.version) })
+    if (failed || !u.installable)
+      rows.push({ kind: "action", id: "updatePage", icon: GLYPH.news, label: t("downloadPage"), cmd: "update page" })
+    if (u.news) rows.push({ kind: "action", id: "updateNews", icon: GLYPH.news, label: t("whatsNew"), page: "updateNews" })
+    if (!always) rows.push({ kind: "action", id: "updateDismiss", label: t("notNow"), cmd: "update dismiss" })
+  }
+  return rows
+}
+
 function main(k, t) {
+  var attached = k.filter.attached !== false
   var rows = [
     { kind: "switch", id: "filter", icon: GLYPH.filter, page: "filter", label: t("filter"),
-      checked: k.filter.on, caption: t(k.filter.on ? "filterOn" : "filterOff"), cmd: "toggle filter" },
-    { kind: "switch", id: "voice", icon: GLYPH.voice, page: "voice", label: t("voice"),
-      enabled: k.filter.attached !== false, checked: k.voice.on, caption: t(k.voice.on ? "voiceOn" : "voiceOff"), cmd: "toggle voice" },
-    { kind: "switch", id: "dictation", icon: GLYPH.dictation, page: "dictation", label: t("dictation"),
-      checked: k.dictation.on, cmd: "toggle dictation",
-      caption: !k.dictation.on ? t("dictationOff", k.dictation.key)
-        : k.dictation.ready ? t("dictationOn", k.dictation.key) : t("dictationNotReady") },
-    { kind: "switch", id: "memos", icon: GLYPH.memos, page: "memos", label: t("memos"),
-      checked: k.memos.on, cmd: "toggle memos",
-      caption: !k.memos.on ? t("memosOff")
-        : k.memos.recording ? t("memosRecordingKey", k.memos.key) : t("memosOnKey", k.memos.key) }
-  ]
+      checked: k.filter.on, caption: filterCaption(k, t), cmd: "toggle filter" }
+  ].concat(filterHelp(k, t))
+  rows.push({ kind: "switch", id: "voice", icon: GLYPH.voice, page: "voice", label: t("voice"),
+    enabled: attached, checked: k.voice.on, caption: !attached ? t("voiceNeedsMic") : t(k.voice.on ? "voiceOn" : "voiceOff"),
+    cmd: "toggle voice" })
+  rows.push({ kind: "switch", id: "dictation", icon: GLYPH.dictation, page: "dictation", label: t("dictation"),
+    checked: k.dictation.on, cmd: "toggle dictation",
+    caption: !k.dictation.on ? t("dictationOff", k.dictation.key)
+      : k.dictation.ready ? t("dictationOn", k.dictation.key) : t("dictationNotReady") })
+  rows = rows.concat(dictationHelp(k, t))
+  rows.push({ kind: "switch", id: "memos", icon: GLYPH.memos, page: "memos", label: t("memos"),
+    checked: k.memos.on, cmd: "toggle memos",
+    caption: !k.memos.on ? t("memosOff")
+      : k.memos.recording ? t("memosRecordingKey", k.memos.key) : t("memosOnKey", k.memos.key) })
   if (k.memos.on && k.memos.recording)
-    rows.push({ kind: "action", id: "stop", icon: GLYPH.stop, label: t("stop"), cmd: "memo stop", urgent: true })
+    rows.push({ kind: "action", id: "stop", icon: GLYPH.stop, label: t("stop"), value: k.memos.elapsed || "", cmd: "memo stop", urgent: true })
   if (k.memos.on)
     rows.push({ kind: "action", id: "recordings", icon: GLYPH.recordings, label: t("recordings"), page: "recordings",
-      value: k.memos.list.length ? String(k.memos.list.length) : "" })
-  if (k.update.state === "available")
-    rows.push({ kind: "action", id: "update", icon: GLYPH.update, label: t("update", k.update.version), cmd: "update install" })
+      value: k.memos.count ? String(k.memos.count) : "" })
+  // The microphone is muted: the note at the bottom says so, this switches it on.
+  if (k.alert === 4) rows.push({ kind: "action", id: "unmute", icon: GLYPH.mic, label: t("unmute"), cmd: "mic unmute", accent: true })
+  if (k.overloadNote) {
+    rows.push({ kind: "info", label: t(k.overloadNote === "switched" ? "overloadSwitched" : "overloadPauses") })
+    rows.push({ kind: "action", id: "overloadSeen", label: t("gotIt"), cmd: "setup overloadSeen" })
+  }
+  rows = rows.concat(updateRows(k, t, false))
   rows.push({ kind: "separator" })
   rows.push({ kind: "action", id: "setup", icon: GLYPH.setup, label: t("setup"), page: "setup" })
   return { title: "", rows: rows }
@@ -70,11 +150,13 @@ function filter(k, t) {
   var hints = ["gentleHint", "mediumHint", "strongHint"]
   return { title: t("filter"), rows: [
     { kind: "switch", id: "filter", label: t("filter"), checked: k.filter.on,
-      caption: t(k.filter.on ? "filterOn" : "filterOff"), cmd: "toggle filter" },
-    { kind: "choice", id: "strength", label: t("filterStrength"), enabled: k.filter.on,
+      caption: filterCaption(k, t), cmd: "toggle filter" }
+  ].concat(filterHelp(k, t), [
+    { kind: "choice", id: "strength", label: t("filterStrength"), enabled: k.filter.on && k.filter.attached !== false,
       options: options(t, ["gentle", "medium", "strong"]), value: k.filter.strength,
-      caption: t(pick(hints, k.filter.strength)), cmd: "set filter.strength {}" }
-  ] }
+      caption: t(pick(hints, k.filter.strength)), cmd: "set filter.strength {}" },
+    { kind: "info", label: t("oldCpu"), hidden: !k.oldCpu }
+  ]) }
 }
 
 function voice(k, t) {
@@ -110,9 +192,14 @@ function voice(k, t) {
   rows.push({ kind: "switch", id: "autoLevel", label: t("autoLevel"), checked: v.autoLevel,
     caption: !v.autoLevel ? t("autoLevelOff")
       : v.levelDb === null || v.levelDb === undefined ? t("autoLevelOn")
+      : k.levels && !k.levels.active ? t("autoLevelOn") + " " + t("levelWaiting")
       : Math.abs(v.levelDb) < 0.5 ? t("levelSame")
       : t("levelNow", (v.levelDb > 0 ? "+" : "−") + Math.abs(v.levelDb).toFixed(1).replace(".", t("decimal"))),
     cmd: "toggle voice.autoLevel" })
+  if (v.isDefault === false) {
+    rows.push({ kind: "separator" })
+    rows.push({ kind: "action", id: "voiceReset", icon: GLYPH.update, label: t("reset"), caption: t("resetHint"), cmd: "set voice.reset" })
+  }
   return { title: t("voice"), rows: rows }
 }
 
@@ -137,8 +224,12 @@ function dictation(k, t) {
     { kind: "switch", id: "dictation", label: t("dictation"), checked: d.on, cmd: "toggle dictation",
       caption: !d.on ? t("dictationOff", d.key) : d.ready ? t("dictationOn", d.key) : t("dictationNotReady") }
   ]
-  if (d.on) rows = rows.concat(modelRows(k, t))
-  rows.push({ kind: "key", id: "dictationKey", label: t("key"), value: d.key, enabled: d.on, cmd: "set dictation.key {}" })
+  if (d.on) rows = rows.concat(modelRows(k, t), dictationHelp(k, t))
+  if (d.keyFixed) rows.push({ kind: "info", label: t("keyFixed", d.key) })
+  else {
+    rows.push({ kind: "key", id: "dictationKey", label: t("key"), value: d.key, enabled: d.on, cmd: "set dictation.key {}" })
+    if (d.keyCustom) rows.push({ kind: "action", id: "dictationKeyReset", label: t("standardKey", "F9"), enabled: d.on, cmd: "set dictation.keyReset" })
+  }
   if (d.note) rows.push({ kind: "info", label: d.note })
   rows.push({ kind: "choice", id: "dictationHow", label: t("how"), enabled: d.on,
     options: [{ value: true, label: t("hold") }, { value: false, label: t("tap") }], value: d.hold,
@@ -149,55 +240,112 @@ function dictation(k, t) {
 
 function memos(k, t) {
   var m = k.memos
-  return { title: t("memos"), rows: [
+  var rows = [
     { kind: "switch", id: "memos", label: t("memos"), checked: m.on, cmd: "toggle memos",
-      caption: m.on ? t("memosOnKey", m.key) : t("memosOff") },
-    { kind: "key", id: "memoKey", label: t("key"), value: m.key, enabled: m.on, cmd: "set memos.key {}" },
-    { kind: "info", label: k.dictation.note || "", hidden: !k.dictation.note },
-    { kind: "choice", id: "memoHow", label: t("how"), enabled: m.on,
+      caption: m.on ? t("memosOnKey", m.key) : t("memosOff") }
+  ]
+  if (k.dictation.keyFixed) rows.push({ kind: "info", label: t("keyFixed", m.key) })
+  else {
+    rows.push({ kind: "key", id: "memoKey", label: t("key"), value: m.key, enabled: m.on, cmd: "set memos.key {}" })
+    if (m.keyCustom) rows.push({ kind: "action", id: "memoKeyReset", label: t("standardKey", "F8"), enabled: m.on, cmd: "set memos.keyReset" })
+  }
+  if (m.keyNote) rows.push({ kind: "info", label: m.keyNote })
+  else if (k.dictation.note) rows.push({ kind: "info", label: k.dictation.note })
+  if (m.canHold === false) rows.push({ kind: "info", label: t("memoTapOnly", k.dictation.key) })
+  else
+    rows.push({ kind: "choice", id: "memoHow", label: t("how"), enabled: m.on,
       options: [{ value: true, label: t("hold") }, { value: false, label: t("tap") }], value: m.hold,
-      caption: t(m.hold ? "memoHold" : "memoTap", k.dictation.key), cmd: "set memos.hold {}" },
-    { kind: "switch", id: "autoText", label: t("autoText"), enabled: m.on, checked: m.autoText,
-      caption: t(m.autoText ? "autoTextOn" : "autoTextOff"), cmd: "toggle memos.autoText" },
-    { kind: "separator" },
-    { kind: "action", id: "recordings", icon: GLYPH.recordings, label: t("recordings"), page: "recordings",
-      value: m.list.length ? String(m.list.length) : "" },
-    { kind: "action", id: "folder", icon: GLYPH.folder, label: t("openFolder"),
-      caption: t("savedIn", m.folder), cmd: "memo folder" },
-    { kind: "info", label: t("privacy") }
-  ] }
+      caption: t(m.hold ? "memoHold" : "memoTap", k.dictation.key), cmd: "set memos.hold {}" })
+  rows.push({ kind: "switch", id: "autoText", label: t("autoText"), enabled: m.on, checked: m.autoText,
+    caption: t(m.autoText ? "autoTextOn" : "autoTextOff"), cmd: "toggle memos.autoText" })
+  rows.push({ kind: "separator" })
+  rows.push({ kind: "action", id: "recordings", icon: GLYPH.recordings, label: t("recordings"), page: "recordings",
+    value: m.count ? String(m.count) : "" })
+  rows.push({ kind: "action", id: "folder", icon: GLYPH.folder, label: t("openFolder"),
+    caption: t("savedIn", m.folder), cmd: "memo folder" })
+  rows.push({ kind: "info", label: t("privacy") })
+  return { title: t("memos"), rows: rows }
+}
+
+// What a recording's text is doing, for its row and its page.
+function textNote(r, t) {
+  if (r.waiting) return t("textWaiting")
+  if (r.text === "writing")
+    return t("writingText", Math.round((r.progress || 0) * 100)) + (r.left ? " · " + r.left : "")
+  return ""
 }
 
 function recordings(k, t) {
   var m = k.memos
   var rows = []
   if (m.recording)
-    rows.push({ kind: "action", id: "stop", icon: GLYPH.stop, label: t("stop"), cmd: "memo stop", urgent: true })
+    rows.push({ kind: "action", id: "stop", icon: GLYPH.stop, label: t("stop"), value: m.elapsed || "", cmd: "memo stop", urgent: true })
   else
-    rows.push({ kind: "action", id: "new", icon: GLYPH.memos, label: t("newRecording"), cmd: "memo start" })
+    rows.push({ kind: "action", id: "new", icon: GLYPH.memos, label: t("newRecording"), value: m.key || "", cmd: "memo start" })
+  if (m.count > 0)
+    rows.push({ kind: "edit", id: "search", icon: GLYPH.search, placeholder: t("search"), value: m.query || "",
+      cmd: "memo search {}", live: true })
   if (m.message) rows.push({ kind: "info", label: m.message })
-  if (!m.list.length) rows.push({ kind: "info", label: t("nothingYet") })
+  if (!m.count) rows.push({ kind: "info", label: t("nothingYet") })
+  else if (!m.list.length) rows.push({ kind: "info", label: t("nothingFound") })
   for (var i = 0; i < m.list.length; i++) {
     var r = m.list[i]
-    rows.push({ kind: "memo", id: "memo:" + r.id, memo: r, label: r.title, isNew: r.isNew,
-      caption: r.when + " · " + r.length
-        + (r.text === "writing" ? " · " + t("writingText", Math.round((r.progress || 0) * 100)) : ""),
+    var note = r.pending ? "" : textNote(r, t)
+    rows.push({ kind: "memo", id: "memo:" + r.id, memo: r, label: r.pending ? t("findingTitle") : r.title, isNew: r.isNew,
+      playing: r.playing, value: r.playing ? m.playTime : "", bar: r.playing ? (m.playFraction || 0) : undefined,
+      caption: r.when + " · " + r.length + (note ? " · " + note : r.text === "failed" ? " · " + t("textFailedShort") : ""),
       page: "text:" + r.id, cmd: "memo play " + r.id })
   }
+  rows.push({ kind: "separator" })
+  rows.push({ kind: "action", id: "folder", icon: GLYPH.folder, label: t("openFolder"), cmd: "memo folder" })
   if (m.list.length) rows.push({ kind: "info", label: t("recordingKeys") })
   return { title: t("recordings"), rows: rows }
 }
 
+// One recording, like the text view of kyrr's window: its title to rename,
+// playing, the text to read, correct and copy, and the rest.
 function memoText(k, t, id) {
+  var m = k.memos
+  var sheet = m.sheet || null
   var r = null
-  for (var i = 0; i < k.memos.list.length; i++) if (k.memos.list[i].id === id) r = k.memos.list[i]
-  if (!r) return { title: t("recordings"), rows: [] }
-  var rows = [{ kind: "action", id: "play", icon: GLYPH.play, label: t("play"), caption: r.when + " · " + r.length,
-    cmd: "memo play " + r.id }]
-  if (r.text === "ready") rows.push({ kind: "info", label: r.transcript || "", body: true })
-  else if (r.text === "writing") rows.push({ kind: "progress", label: t("writingText", Math.round((r.progress || 0) * 100)), value: r.progress || 0 })
-  else rows.push({ kind: "action", id: "write", icon: GLYPH.dictation, label: t("writeText"), cmd: "memo text " + r.id })
-  return { title: r.title, rows: rows }
+  for (var i = 0; i < m.list.length; i++) if (m.list[i].id === id) r = m.list[i]
+  // Renamed: the file has a new name, the open text follows it.
+  if (!r && sheet)
+    for (var j = 0; j < m.list.length; j++) if (m.list[j].id === sheet.id) r = m.list[j]
+  if (!r) return { title: t("recordings"), rows: [{ kind: "info", label: t("memoGone") }] }
+  var rows = [
+    { kind: "edit", id: "title", label: t("title"), value: r.title, rename: r.id },
+    { kind: "action", id: "play", icon: r.playing ? GLYPH.stop : GLYPH.play, label: r.playing ? t("stop") : t("play"),
+      value: r.playing ? m.playTime : r.length, caption: r.when, cmd: "memo play " + r.id,
+      bar: r.playing ? (m.playFraction || 0) : undefined }
+  ]
+  // The rows around the text stay put while it plays or saves, so the text
+  // field is never made anew under the cursor.
+  var open = sheet && sheet.id === r.id
+  if (r.text === "ready" && open) {
+    rows.push({ kind: "section", label: t("text") })
+    rows.push({ kind: "editor", id: "editor", memo: r.id })
+    rows.push({ kind: "info", label: sheet.empty ? t("nothingUnderstood") : sheet.saved ? t("copyHint") : t("saving") })
+    rows.push({ kind: "action", id: "copy", icon: GLYPH.copy, label: sheet.copied ? "✓ " + t("copied") : t("copy"),
+      caption: t("copyCaption") })
+    rows.push({ kind: "action", id: "here", icon: GLYPH.play, label: t("playHere"), value: sheet.here || "" })
+    rows.push({ kind: "choice", id: "stamps", label: t("times"),
+      options: options(t, ["stampsOff", "stampsPosition", "stampsClock"]), value: sheet.stamps, cmd: "memo stamps {}" })
+    rows.push({ kind: "action", id: "opentext", icon: GLYPH.file, label: t("openText"), cmd: "memo opentext" })
+  } else if (r.text === "writing" || r.waiting) {
+    rows.push({ kind: "progress", label: textNote(r, t), value: r.progress || 0 })
+    rows.push({ kind: "action", id: "cancelText", label: t("cancel"), cmd: "memo cancel " + r.id })
+  } else if (r.text === "failed") {
+    rows.push({ kind: "action", id: "write", icon: GLYPH.dictation, label: t("tryAgain"),
+      caption: t(m.canWrite ? "textFailed" : "needsModel"), cmd: "memo text " + r.id, enabled: !!m.canWrite })
+  } else if (r.text !== "ready") {
+    rows.push({ kind: "action", id: "write", icon: GLYPH.dictation, label: t("writeText"),
+      caption: m.canWrite ? "" : t("needsModel"), cmd: "memo text " + r.id, enabled: !!m.canWrite })
+  }
+  rows.push({ kind: "separator" })
+  rows.push({ kind: "action", id: "reveal", icon: GLYPH.folder, label: t("showInFolder"), cmd: "memo reveal " + r.id })
+  rows.push({ kind: "action", id: "deleteMemo", icon: GLYPH.trash, label: t("delete"), memo: r, urgent: true })
+  return { title: r.pending ? t("findingTitle") : r.title, rows: rows }
 }
 
 function setup(k, t) {
@@ -222,20 +370,25 @@ function setup(k, t) {
   rows.push({ kind: "switch", id: "overload", label: t("overload"), checked: g.overload,
     caption: t(g.overload ? "overloadOn" : "overloadOff"), cmd: "toggle general.overload" })
   rows.push({ kind: "section", label: t("check") })
+  if (k.filter.attached !== false && k.levels) {
+    rows.push({ kind: "progress", label: t("levelYourMic"), value: k.levels.before || 0 })
+    rows.push({ kind: "progress", label: t("levelApps"), value: k.levels.after || 0 })
+    rows.push({ kind: "info", label: t("levelHint") })
+  }
   rows.push({ kind: "switch", id: "listen", label: t("listen"), checked: k.listen, caption: t("listenHint"), cmd: "toggle listen" })
   rows.push({ kind: "action", id: "test", icon: GLYPH.check, label: t("test"),
     caption: k.probe === "recording" ? t("recording") : t("testHint"), cmd: k.probe === "idle" ? "test start" : "" })
   if (k.hasProbe) {
     rows.push({ kind: "action", id: "before", icon: GLYPH.play, label: t("testBefore"), caption: t("testBeforeHint"), cmd: "test before" })
     rows.push({ kind: "action", id: "after", icon: GLYPH.play, label: t("testAfter"), caption: t("testAfterHint"), cmd: "test after" })
+    rows.push({ kind: "action", id: "testDelete", icon: GLYPH.trash, label: t("testDelete"), cmd: "test delete" })
   }
+  if (k.probeError) rows.push({ kind: "info", label: k.probeError })
   rows.push({ kind: "section", label: t("updates") })
   rows.push({ kind: "switch", id: "updateCheck", label: t("updateAuto"), checked: g.updateCheck,
     caption: t(g.updateCheck ? "updateAutoOn" : "updateAutoOff"), cmd: "toggle general.updateCheck" })
-  if (u.state === "available")
-    rows.push({ kind: "action", id: "update", icon: GLYPH.update, label: t("updateNow"), caption: t("updateOut", u.version), cmd: "update install" })
-  else if (u.state === "downloading")
-    rows.push({ kind: "progress", label: t("downloadingUpdate", Math.round((u.progress || 0) * 100)), value: u.progress || 0 })
+  var updates = updateRows(k, t, true)
+  if (updates.length) rows = rows.concat(updates)
   else
     rows.push({ kind: "action", id: "checkUpdate", icon: GLYPH.update, label: t("checkUpdates"),
       caption: u.state === "checking" ? t("checking") : u.state === "latest" ? t("latest") : u.state === "failed" ? t("checkFailed") : "",
@@ -258,7 +411,13 @@ function about(k, t) {
   return { title: t("about"), rows: [
     { kind: "info", label: t("version", k.version) },
     { kind: "action", id: "feedback", icon: GLYPH.feedback, label: t("feedback"), cmd: "open feedback" },
+    { kind: "action", id: "licenses", icon: GLYPH.file, label: t("licenses"), cmd: "open licenses" },
     { kind: "info", label: t("aboutLine") },
+    { kind: "section", label: t("credits") },
+    { kind: "info", label: t("creditsNoise") },
+    { kind: "info", label: t("creditsDe") },
+    { kind: "info", label: t("creditsEn") },
+    { kind: "info", label: t("creditsMore") },
     { kind: "section", label: t("news", k.version), hidden: !k.news },
     { kind: "info", label: k.news || "", body: true, hidden: !k.news }
   ] }
@@ -300,6 +459,13 @@ function welcome(k, t) {
   return { title: t(step === 1 ? "welcome" : step === 2 ? "languageModel" : "performance"), rows: rows }
 }
 
+function updateNews(k, t) {
+  return { title: t("whatsNew"), rows: [
+    { kind: "info", label: t("news", k.update.version) },
+    { kind: "info", label: k.update.news || "", body: true }
+  ].concat(updateRows(k, t, true).filter(function(row) { return row.id !== "updateNews" })) }
+}
+
 function build(page, k, t) {
   var view = page_(page, k, t)
   view.rows = view.rows.filter(function(row) { return !row.hidden })
@@ -318,6 +484,7 @@ function page_(page, k, t) {
   case "setup": return setup(k, t)
   case "mic": return mic(k, t)
   case "about": return about(k, t)
+  case "updateNews": return updateNews(k, t)
   default: return main(k, t)
   }
 }

@@ -89,6 +89,13 @@ Panel {
   property string capturing: ""
   // A recording asked to be deleted once already, by row id.
   property string deleting: ""
+  // Typing into a line or the text of a recording: keys go there.
+  property bool typing: false
+  // The text of the recording on show, as kyrr's text view has it, and the
+  // field showing it (one at a time).
+  property string sheetText: ""
+  property string sheetId: ""
+  property var editorItem: null
 
   function t(key, value) {
     return Texts.text(root.german, key, value)
@@ -140,6 +147,7 @@ Panel {
   // ------------------------------------------------------------ pages
 
   function openPage(name) {
+    root.flushEdit()
     var saved = Object.assign({}, root.cursors)
     saved[root.page] = root.cursor
     root.cursors = saved
@@ -151,6 +159,7 @@ Panel {
 
   function back() {
     if (root.stack.length <= 1) return false
+    root.flushEdit()
     root.stack = root.stack.slice(0, root.stack.length - 1)
     root.deleting = ""
     root.capturing = ""
@@ -211,14 +220,24 @@ Panel {
       return
     }
     if (!root.enabled(row)) return
+    if (row.id === "copy") return root.copySheet()
+    if (row.id === "here") return root.playHere()
+    if (row.id === "deleteMemo") return root.remove()
     switch (row.kind) {
+    case "edit":
+    case "editor":
+      var item = rowRepeater.itemAt(index)
+      if (item && item.item) item.item.startTyping()
+      return
     case "choice":
       var at = 0
       for (var i = 0; i < row.options.length; i++) if (row.options[i].value === row.value) at = i
       root.command(row, row.options[(at + 1) % row.options.length].value)
       return
     case "key":
-      root.capturing = row.id
+      // A second click on a listening key row stops listening.
+      root.capturing = root.capturing === row.id ? "" : row.id
+      if (root.capturing === "") keyCatcher.forceActiveFocus()
       return
     case "slider":
       return
@@ -231,15 +250,67 @@ Panel {
     }
   }
 
+  // x, or a recording's bin: once asks, twice deletes. On a recording's own
+  // page the way back follows.
   function remove() {
     var row = root.rows[root.cursor]
-    if (!row || row.kind !== "memo") return
+    if (!row || (row.kind !== "memo" && row.id !== "deleteMemo")) return
     if (root.deleting === row.id) {
       root.send("memo delete " + row.memo.id)
       root.deleting = ""
+      if (row.id === "deleteMemo") root.back()
     } else {
       root.deleting = row.id
     }
+  }
+
+  // A line typed into: a recording's new title, or what to search for.
+  function submitEdit(row, text) {
+    if (row.rename) {
+      if (text.trim() === "" || text === row.value) return
+      root.flushEdit()
+      root.send("memo rename " + JSON.stringify([row.rename, text.trim()]))
+    } else if (row.cmd) {
+      root.send(row.cmd.replace("{}", text))
+    }
+  }
+
+  // UTF-8 bytes in front of a place in the text: kyrr counts in bytes.
+  function bytes(text) {
+    var n = 0
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i)
+      if (c < 0x80) n += 1
+      else if (c < 0x800) n += 2
+      else if (c >= 0xD800 && c < 0xDC00) { n += 4; i++ }
+      else n += 3
+    }
+    return n
+  }
+
+  // What was typed into the recording's text goes to kyrr through a file
+  // (a long text does not fit on a command line); kyrr takes it before each
+  // of the commands below, so they see the text as it is on the screen.
+  function flushEdit() {
+    var e = root.editorItem
+    if (!e || !e.dirty || editFile.path === "" || e.memo === "") return
+    editFile.setText(e.memo + "\n" + e.text)
+    e.sent = e.text
+    e.dirty = false
+    root.send("memo edit")
+  }
+
+  function copySheet() {
+    var e = root.editorItem
+    root.flushEdit()
+    if (!e) return root.send("memo copy 0 0")
+    root.send("memo copy " + root.bytes(e.text.slice(0, e.selectionStart)) + " " + root.bytes(e.text.slice(0, e.selectionEnd)))
+  }
+
+  function playHere() {
+    var e = root.editorItem
+    root.flushEdit()
+    root.send("memo here " + (e ? root.bytes(e.text.slice(0, e.cursorPosition)) : 0))
   }
 
   function closeRequested() {
@@ -283,6 +354,10 @@ Panel {
   // kyrr puts the text of the recording on show into its state, and counts
   // the list as seen once it was open.
   onPageChanged: {
+    // The text of the recording shown before is not this one's.
+    root.sheetId = ""
+    root.sheetText = ""
+    if (root.page.indexOf("text:") === 0) Qt.callLater(sheetFile.reload)
     if (!root.running) return
     root.send(root.page.indexOf("text:") === 0 ? "memo show " + root.page.slice(5) : "memo show")
     if (root.page === "recordings") root.send("memo seen")
@@ -296,6 +371,8 @@ Panel {
   }
 
   function openMenu() {
+    root.flushEdit()
+    if (root.running && root.kyrr.memos && root.kyrr.memos.query) root.send("memo search ")
     root.stack = ["main"]
     root.cursors = ({})
     root.cursorActive = false
@@ -335,6 +412,9 @@ Panel {
       }
       root.stateText = content
       root.kyrr = parsed
+      // kyrr writes a recording's text before the state that names it; a
+      // watch does not see a file that was not there yet.
+      if (root.page.indexOf("text:") === 0) sheetFile.reload()
       if (!root.alive) aliveProbe.running = true
     }
     onLoadFailed: {
@@ -355,6 +435,30 @@ Panel {
       root.alive = exitCode === 0
       root.oddLooks = root.alive && !root.running ? root.oddLooks + 1 : 0
     }
+  }
+
+  // The text of the recording on show, and what was typed into it.
+  FileView {
+    id: sheetFile
+    path: root.runtimeDir !== "" ? root.runtimeDir + "/kyrr/sheet" : ""
+    printErrors: false
+    watchChanges: true
+    // The first line names the recording, the rest is its text.
+    onLoaded: {
+      var all = text()
+      var cut = all.indexOf("\n")
+      root.sheetId = cut < 0 ? "" : all.slice(0, cut)
+      root.sheetText = cut < 0 ? "" : all.slice(cut + 1)
+    }
+    onLoadFailed: { root.sheetId = ""; root.sheetText = "" }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: editFile
+    path: root.runtimeDir !== "" ? root.runtimeDir + "/kyrr/edit" : ""
+    printErrors: false
+    blockWrites: true
   }
 
   // Tells kyrr that this widget sits in the bar.
@@ -417,14 +521,15 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(360))
+    // A recording's text gets room to be read.
+    contentWidth: panel.fittedContentWidth(Style.space(root.page.indexOf("text:") === 0 ? 520 : 360))
     contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(660))
 
     // A plain child rather than `content:`, which Omarchy 4.0 does not know.
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: root.capturing !== ""
+      blocked: root.capturing !== "" || root.typing
       onMoveRequested: function(dx, dy) {
         if (dy !== 0) root.moveCursor(dy)
         else root.sideways(dx)
@@ -632,17 +737,21 @@ Panel {
 
             Repeater {
               id: rowRepeater
-              model: root.rows
+              // By count, not by the rows themselves: kyrr's state comes
+              // every few hundred milliseconds, and new rows each time would
+              // make new row items, losing a click pressed on the old one.
+              model: root.rows.length
               delegate: Loader {
-                required property var modelData
                 required property int index
-                readonly property var row: modelData
+                readonly property var row: root.rows[index] || ({})
                 readonly property int rowIndex: index
                 width: rowColumn.width
-                sourceComponent: modelData.kind === "section" ? sectionRow
-                  : modelData.kind === "info" ? infoRow
-                  : modelData.kind === "progress" ? progressRow
-                  : modelData.kind === "separator" ? separatorRow
+                sourceComponent: row.kind === "edit" ? editRow
+                  : row.kind === "editor" ? editorRow
+                  : row.kind === "section" ? sectionRow
+                  : row.kind === "info" ? infoRow
+                  : row.kind === "progress" ? progressRow
+                  : row.kind === "separator" ? separatorRow
                   : selectableRow
               }
             }
@@ -788,9 +897,9 @@ Panel {
           visible: !!rowItem.r.icon || rowItem.r.kind === "radio" || rowItem.r.kind === "memo"
           textFormat: Text.PlainText
           text: rowItem.r.kind === "radio" ? root.glyph(rowItem.r.checked ? 0xF0134 : 0xF0130)
-            : rowItem.r.kind === "memo" ? root.glyph(rowItem.r.memo.isNew ? 0xF0765 : 0xF040A)
+            : rowItem.r.kind === "memo" ? root.glyph(rowItem.r.playing ? 0xF04DB : rowItem.r.memo.isNew ? 0xF0765 : 0xF040A)
             : rowItem.r.icon ? root.glyph(rowItem.r.icon) : ""
-          color: rowItem.r.kind === "memo" && rowItem.r.memo.isNew ? Commons.Color.accent
+          color: rowItem.r.kind === "memo" && (rowItem.r.memo.isNew || rowItem.r.playing) ? Commons.Color.accent
             : rowItem.r.kind === "radio" && rowItem.r.checked ? Commons.Color.accent : rowItem.ink
           font.family: root.fontFamily
           font.pixelSize: Style.font.icon
@@ -852,8 +961,35 @@ Panel {
           Layout.alignment: Qt.AlignVCenter
         }
 
+        // A recording: its bin (click twice, like x twice) and its arrow to
+        // the text, both for the mouse.
+        PanelActionButton {
+          visible: rowItem.r.kind === "memo"
+          iconText: root.glyph(0xF01B4)
+          tooltipText: root.t("delete")
+          foreground: root.deleting === rowItem.r.id ? root.urgent : root.dim
+          hoverColor: root.deleting === rowItem.r.id ? root.urgent : root.foreground
+          fontFamily: root.fontFamily
+          Layout.alignment: Qt.AlignVCenter
+          onClicked: {
+            root.pointAt(rowItem.rowIndex)
+            root.remove()
+          }
+        }
+
+        PanelActionButton {
+          visible: rowItem.r.kind === "memo"
+          iconText: root.glyph(0xF0142)
+          tooltipText: root.t("showText")
+          foreground: root.dim
+          hoverColor: root.foreground
+          fontFamily: root.fontFamily
+          Layout.alignment: Qt.AlignVCenter
+          onClicked: root.openPage(rowItem.r.page)
+        }
+
         Text {
-          visible: !!rowItem.r.page && rowItem.r.kind !== "switch"
+          visible: !!rowItem.r.page && rowItem.r.kind !== "switch" && rowItem.r.kind !== "memo"
           textFormat: Text.PlainText
           text: root.glyph(0xF0142)
           color: root.dim
@@ -880,6 +1016,262 @@ Panel {
           foreground: root.foreground
           Layout.alignment: Qt.AlignVCenter
         }
+      }
+
+      // How far a recording has played.
+      Rectangle {
+        visible: rowItem.r.bar !== undefined
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: Style.space(10)
+        anchors.bottomMargin: Style.space(2)
+        width: (parent.width - Style.space(20)) * Math.max(0, Math.min(1, rowItem.r.bar || 0))
+        height: Style.space(2)
+        color: Commons.Color.accent
+      }
+    }
+  }
+
+  // A line to type into: the search over the recordings, a recording's
+  // title. Enter (or a click) starts typing, Enter takes it, Esc leaves it.
+  Component {
+    id: editRow
+    CursorSurface {
+      id: editItem
+      readonly property var r: parent ? parent.row : ({})
+      readonly property int rowIndex: parent ? parent.rowIndex : -1
+
+      function startTyping() {
+        input.forceActiveFocus()
+        input.selectAll()
+      }
+
+      width: parent ? parent.width : 0
+      hasCursor: root.cursorActive && root.cursor === rowIndex && !input.activeFocus
+      foreground: root.foreground
+      implicitHeight: editLayout.implicitHeight + Style.spacing.rowPaddingX
+
+      // kyrr's value, while nobody types.
+      onRChanged: if (!input.activeFocus && input.text !== (r.value || "")) input.text = r.value || ""
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        onEntered: root.pointAt(editItem.rowIndex)
+        onClicked: input.forceActiveFocus()
+      }
+
+      RowLayout {
+        id: editLayout
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.leftMargin: Style.space(10)
+        anchors.rightMargin: Style.space(10)
+        spacing: Style.space(8)
+
+        Text {
+          visible: !!editItem.r.icon
+          textFormat: Text.PlainText
+          text: editItem.r.icon ? root.glyph(editItem.r.icon) : ""
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.icon
+          Layout.preferredWidth: Style.font.icon * 1.4
+          Layout.alignment: Qt.AlignVCenter
+        }
+
+        Text {
+          visible: !!editItem.r.label
+          textFormat: Text.PlainText
+          text: editItem.r.label || ""
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          Layout.alignment: Qt.AlignVCenter
+        }
+
+        TextField {
+          id: input
+          // Taken with Enter: leaving the line afterwards takes it no more.
+          property bool taken: false
+          Layout.fillWidth: true
+          Layout.alignment: Qt.AlignVCenter
+          placeholderText: editItem.r.placeholder || ""
+          foreground: root.foreground
+          font.family: root.fontFamily
+          verticalPadding: Style.space(3)
+          Component.onCompleted: text = editItem.r.value || ""
+          onActiveFocusChanged: {
+            root.typing = activeFocus
+            if (activeFocus) root.pointAt(editItem.rowIndex)
+            // A title left by a click elsewhere is taken as typed.
+            else if (editItem.r.rename && !taken) root.submitEdit(editItem.r, text)
+            taken = false
+          }
+          onTextEdited: if (editItem.r.live) liveTimer.restart()
+          onAccepted: {
+            liveTimer.stop()
+            root.submitEdit(editItem.r, text)
+            taken = true
+            keyCatcher.forceActiveFocus()
+          }
+          Keys.onEscapePressed: {
+            if (!editItem.r.live) text = editItem.r.value || ""
+            taken = true
+            keyCatcher.forceActiveFocus()
+          }
+          // ↑ and ↓ leave the line for the rows around it.
+          Keys.onUpPressed: { keyCatcher.forceActiveFocus(); root.moveCursor(-1) }
+          Keys.onDownPressed: { keyCatcher.forceActiveFocus(); root.moveCursor(1) }
+        }
+      }
+
+      Timer {
+        id: liveTimer
+        interval: 250
+        onTriggered: root.submitEdit(editItem.r, input.text)
+      }
+    }
+  }
+
+  // A recording's text, as in kyrr's text view: read it, correct it (kyrr
+  // saves it), select and copy it. Enter (or a click) goes in, Esc out.
+  Component {
+    id: editorRow
+    CursorSurface {
+      id: editorItem
+      readonly property int rowIndex: parent ? parent.rowIndex : -1
+      readonly property string memo: parent && parent.row.memo ? parent.row.memo : ""
+
+      function startTyping() {
+        area.forceActiveFocus()
+      }
+
+      width: parent ? parent.width : 0
+      hasCursor: root.cursorActive && root.cursor === rowIndex && !area.activeFocus
+      bordered: true
+      foreground: root.foreground
+      implicitHeight: Style.space(240)
+
+      // A click below the last line goes into the text too.
+      MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.IBeamCursor
+        onClicked: {
+          area.forceActiveFocus()
+          area.cursorPosition = area.length
+        }
+      }
+
+      Flickable {
+        id: flick
+        anchors.fill: parent
+        anchors.margins: Style.space(10)
+        contentWidth: width
+        contentHeight: area.contentHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        function follow(r) {
+          if (contentY > r.y) contentY = r.y
+          else if (contentY + height < r.y + r.height) contentY = r.y + r.height - height
+        }
+
+        TextEdit {
+          id: area
+          // Typed and not yet handed to kyrr; handed and not yet back.
+          property bool dirty: false
+          property var sent: null
+          property bool loading: false
+          readonly property string memo: editorItem.memo
+
+          width: flick.width
+          wrapMode: TextEdit.Wrap
+          textFormat: TextEdit.PlainText
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          selectByMouse: true
+          persistentSelection: true
+          selectionColor: Style.selectionFillFor(root.foreground, Commons.Color.accent)
+          selectedTextColor: root.foreground
+
+          // kyrr's text of this recording, unless something typed is on its
+          // way.
+          function load() {
+            if (root.sheetId === "" || root.sheetId !== memo) return
+            if (sent !== null) {
+              if (root.sheetText !== sent) return
+              sent = null
+            }
+            if (dirty || text === root.sheetText) return
+            var at = cursorPosition
+            loading = true
+            text = root.sheetText
+            cursorPosition = Math.min(at, length)
+            loading = false
+          }
+
+          Component.onCompleted: {
+            root.editorItem = area
+            load()
+          }
+          Component.onDestruction: {
+            root.flushEdit()
+            if (root.editorItem === area) root.editorItem = null
+            if (activeFocus) root.typing = false
+          }
+          onTextChanged: {
+            if (loading) return
+            dirty = true
+            editTimer.restart()
+          }
+          onCursorPositionChanged: cursorTimer.restart()
+          onCursorRectangleChanged: flick.follow(cursorRectangle)
+          onActiveFocusChanged: {
+            root.typing = activeFocus
+            if (activeFocus) root.pointAt(editorItem.rowIndex)
+          }
+          Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Escape) {
+              root.flushEdit()
+              keyCatcher.forceActiveFocus()
+              event.accepted = true
+            } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_C) {
+              // Copied by kyrr, which leaves the times behind.
+              root.copySheet()
+              event.accepted = true
+            }
+          }
+        }
+      }
+
+      Connections {
+        target: root
+        function onSheetTextChanged() { area.load() }
+        function onSheetIdChanged() { area.load() }
+      }
+
+      // Saved a moment after the last key, as in kyrr's window.
+      Timer {
+        id: editTimer
+        interval: 400
+        onTriggered: root.flushEdit()
+      }
+
+      // Tells kyrr where the cursor is, for "Play from here (1:30)".
+      Timer {
+        id: cursorTimer
+        interval: 250
+        onTriggered: root.send("memo cursor " + root.bytes(area.text.slice(0, area.cursorPosition)))
+      }
+
+      // Text handed to kyrr that never came back (kyrr gone, say).
+      Timer {
+        interval: 3000
+        running: area.sent !== null
+        onTriggered: { area.sent = null; area.load() }
       }
     }
   }
