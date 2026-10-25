@@ -12,7 +12,7 @@
   },
   "barWidget": {
     "displayName": "kyrr",
-    "description": "Shows when kyrr listens, writes or records. Click: kyrr's menu (noise filter, voice, dictation, voice memo, each with its settings; Setup). Middle click: dictate. Right click: quit kyrr.",
+    "description": "Shows when kyrr listens, writes or records. Click: kyrr's menu (noise filter, voice, dictation, voice memo, each with its settings; Setup). Middle click: dictate. Right click: kyrr's window.",
     "category": "Audio",
     "defaultSection": "right",
     "allowMultiple": false

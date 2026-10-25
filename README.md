@@ -6,18 +6,19 @@ local noise suppression and dictation, free and offline.
 - **Icon.** The waveform lights up in your theme's accent while kyrr listens
   or writes, and in red while it records a voice memo. Dimmed: kyrr is not
   running.
-- **Menu** (click): the switches of kyrr's main page (isolate your voice,
-  improve voice, dictation, voice memo), each with its gear for its
-  settings; stop a running recording, open recordings, install an update,
-  Setup.
-- **Middle click:** start or stop dictating. **Right click:** quit kyrr.
+- **Menu** (click): kyrr's status line and notes as in its window, and the
+  switches of its main page (isolate your voice, improve voice, dictation,
+  voice memo), each with its gear for its settings; stop a running
+  recording, open recordings, install an update, Setup.
+- **Middle click:** start or stop dictating. **Right click:** kyrr's window.
 - **Not installed yet?** The menu offers "Install kyrr": it runs the install
   command from kyrr's website in a terminal, so you see every step. kyrr is
   one file, `~/.local/bin/kyrr` (about 50 MB, plus the speech model you pick
   in its setup).
 
 While the widget is in the bar, kyrr leaves out its tray icon and the
-window's buttons to hide or quit; the widget does both. kyrr also joins
+window's buttons to hide or quit. To switch kyrr off, disable the plugin in
+Omarchy's menu (Setup > Plugins). kyrr also joins
 Omarchy's dictation (Setup > Defaults > Dictation, Omarchy 4.5 and newer) and
 takes your theme's colours and font.
 

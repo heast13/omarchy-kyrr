@@ -18,7 +18,8 @@ import "Texts.js" as Texts
 // socket, $XDG_RUNTIME_DIR/kyrr.sock; kyrr answers by rewriting the file.
 // The widget renews $XDG_RUNTIME_DIR/kyrr-widget every few seconds: while
 // that file is fresh, kyrr leaves out its tray icon and the window's buttons
-// to hide or quit, since the widget does both (its menu, a right click quits).
+// to hide or quit: the widget's menu opens kyrr's window, and turning kyrr
+// off is turning the plugin off in Omarchy's menu.
 Panel {
   id: root
   moduleName: "heast13.kyrr"
@@ -36,6 +37,9 @@ Panel {
   property var wanted: ({})
 
   readonly property bool running: alive && kyrr !== null
+  // A kyrr that writes the status line also knows "menu-open"; an older
+  // one would show its window for every word it does not know.
+  readonly property bool live: running && kyrr.line !== undefined
   readonly property string mode: running ? String(kyrr.mode || "idle") : ""
   readonly property bool busy: mode === "listening" || mode === "writing" || mode === "recording"
   readonly property string language: running && kyrr.lang ? kyrr.lang : Commons.I18n.language
@@ -149,7 +153,14 @@ Panel {
   implicitHeight: button.implicitHeight
 
   onRowsChanged: if (cursorIndex >= rows.length) cursorIndex = Math.max(0, rows.length - 1)
-  onOpenedChanged: if (opened) {
+  // While the menu is open kyrr keeps its status line and notes going for
+  // it, as for its window; it hears "menu-open" every few seconds.
+  onOpenedChanged: {
+    if (live) send(opened ? "menu-open" : "menu-closed")
+    if (opened) openMenu()
+  }
+
+  function openMenu() {
     cursorActive = false
     cursorIndex = 0
     stateFile.reload()
@@ -214,6 +225,7 @@ Panel {
     onTriggered: {
       stateFile.reload()
       processFile.reload()
+      if (root.opened && root.live && ticks % 2 === 0) root.send("menu-open")
       if (ticks % 5 === 0) {
         if (widgetFile.path !== "") widgetFile.setText(Date.now() + "\n")
         if (!root.running) lookForKyrr.running = true
@@ -230,11 +242,10 @@ Panel {
     active: root.busy
     activeColor: root.mode === "recording" ? root.urgent : Commons.Color.accent
     dimmed: !root.running
-    tooltipText: root.opened ? "" : "kyrr: " + root.statusText() + (root.running ? "\n" + root.t("quitHint") : "")
+    tooltipText: root.opened ? "" : "kyrr: " + root.statusText()
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.MiddleButton && root.running) root.send("dictate")
-      // Quitting is a right click on the icon, as in the tray.
-      else if (buttonCode === Qt.RightButton && root.running) root.send("quit")
+      else if (buttonCode === Qt.RightButton && root.running) root.send("show")
       else root.toggle()
     }
   }
@@ -278,6 +289,19 @@ Panel {
               font.pixelSize: Style.font.display
             }
           }
+        }
+
+        // The line under kyrr's name in its window.
+        Text {
+          visible: text !== ""
+          width: parent.width
+          textFormat: Text.PlainText
+          text: root.running && root.kyrr.line ? root.kyrr.line : ""
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          font.italic: true
+          wrapMode: Text.WordWrap
         }
 
         PanelSeparator { foreground: root.foreground }
@@ -370,6 +394,19 @@ Panel {
             icon: 0xF066A
             label: root.t("setup")
           }
+        }
+
+        // The note at the bottom of kyrr's window: problems in red, a
+        // microphone that came back in the accent.
+        Text {
+          visible: text !== ""
+          width: parent.width
+          textFormat: Text.PlainText
+          text: root.running && root.kyrr.note ? root.kyrr.note : ""
+          color: root.running && root.kyrr.noteGood ? Commons.Color.accent : root.urgent
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.WordWrap
         }
       }
     }
