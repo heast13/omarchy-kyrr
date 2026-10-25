@@ -247,6 +247,13 @@ Panel {
       root.cursor = root.firstSelectable()
   }
   onCursorChanged: Qt.callLater(root.showCursor)
+  // kyrr puts the text of the recording on show into its state, and counts
+  // the list as seen once it was open.
+  onPageChanged: {
+    if (!root.running) return
+    root.send(root.page.indexOf("text:") === 0 ? "memo show " + root.page.slice(5) : "memo show")
+    if (root.page === "recordings") root.send("memo seen")
+  }
   // While the menu is open kyrr keeps its status line, notes and meters
   // going for it; it hears "menu-open" every few seconds.
   onOpenedChanged: {
