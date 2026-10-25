@@ -49,10 +49,12 @@ Panel {
   // The menu's rows, top to bottom; the keyboard cursor walks them.
   readonly property var rows: {
     if (!running) return installed ? ["start"] : ["install"]
-    var list = ["filter", "voice", "dictation"]
-    if (kyrr.memos) list.push("memo", "memos")
+    // The switches of kyrr's main page, in its order.
+    var list = ["filter", "voice", "dictation", "memos"]
+    if (kyrr.memos && kyrr.memo) list.push("stop")
+    if (kyrr.memos) list.push("recordings")
     if (kyrr.update) list.push("update")
-    list.push("open", "quit")
+    list.push("setup", "quit")
     return list
   }
   property int cursorIndex: 0
@@ -98,10 +100,11 @@ Panel {
     case "filter": root.flip("filter", "toggle-filter"); return
     case "voice": root.flip("voice", "toggle-voice"); return
     case "dictation": root.flip("dictation", "toggle-dictation"); return
-    case "memo": root.send("toggle-memo"); return
-    case "memos": root.send("open-memos"); root.close(); return
+    case "memos": root.flip("memos", "toggle-memos"); return
+    case "stop": root.send("toggle-memo"); return
+    case "recordings": root.send("open-memos"); root.close(); return
     case "update": root.send("install-update"); root.close(); return
-    case "open": root.send("show"); root.close(); return
+    case "setup": root.openPage(1); return
     case "quit": root.send("quit"); root.close(); return
     case "start": if (root.bar) root.bar.run(root.startCommand); return
     case "install":
@@ -109,6 +112,12 @@ Panel {
       root.close()
       return
     }
+  }
+
+  // A page of kyrr's window: 1 Setup, 2 to 5 a switch's settings (its gear).
+  function openPage(page) {
+    root.send("page-" + page)
+    root.close()
   }
 
   function moveCursor(dy) {
@@ -279,18 +288,21 @@ Panel {
 
           SwitchRow {
             name: "filter"
+            page: 2
             icon: 0xF036C
             label: root.t("filter")
             caption: root.t(root.checked("filter") ? "filterOn" : "filterOff")
           }
           SwitchRow {
             name: "voice"
+            page: 3
             icon: 0xF0068
             label: root.t("voice")
             caption: root.t(root.checked("voice") ? "voiceOn" : "voiceOff")
           }
           SwitchRow {
             name: "dictation"
+            page: 4
             icon: 0xF030C
             label: root.t("dictation")
             caption: !root.running ? ""
@@ -298,17 +310,31 @@ Panel {
               : root.kyrr.ready ? root.t("dictationOn", root.kyrr.key)
               : root.t("dictationNotReady")
           }
+          SwitchRow {
+            name: "memos"
+            page: 5
+            // Like the window: the gear only while recordings are on.
+            gear: root.checked("memos")
+            icon: 0xF044A
+            label: root.t("memos")
+            caption: !root.running ? ""
+              : !root.checked("memos") ? root.t("memosOff")
+              : root.kyrr.memo ? root.t(root.kyrr.memoKey ? "memosRecordingKey" : "memosRecording", root.kyrr.memoKey)
+              : root.t(root.kyrr.memoKey ? "memosOnKey" : "memosOn", root.kyrr.memoKey)
+          }
+          // Started with the key; only a running one gets a button, as in
+          // the window.
           ActionRow {
-            name: "memo"
-            icon: root.running && root.kyrr.memo ? 0xF04DB : 0xF044A
-            iconColor: root.running && root.kyrr.memo ? root.urgent : root.foreground
-            label: root.t(root.running && root.kyrr.memo ? "memoStop" : "memoStart")
-            caption: root.running && root.kyrr.memoKey ? root.t("memoKey", root.kyrr.memoKey) : ""
+            name: "stop"
+            icon: 0xF04DB
+            iconColor: root.urgent
+            hoverColor: root.urgent
+            label: root.t("stop")
           }
           ActionRow {
-            name: "memos"
+            name: "recordings"
             icon: 0xF1359
-            label: root.t("memos")
+            label: root.t("recordings")
           }
           ActionRow {
             name: "update"
@@ -340,9 +366,9 @@ Panel {
           spacing: Style.space(4)
 
           ActionRow {
-            name: "open"
-            icon: 0xF0493
-            label: root.t("open")
+            name: "setup"
+            icon: 0xF066A
+            label: root.t("setup")
           }
           ActionRow {
             name: "quit"
@@ -359,6 +385,9 @@ Panel {
   component SwitchRow: CursorSurface {
     id: switchRow
     property string name: ""
+    // The window's page with this switch's settings.
+    property int page: 0
+    property bool gear: true
     property int icon: 0
     property string label: ""
     property string caption: ""
@@ -391,6 +420,17 @@ Panel {
       RowLabels {
         label: switchRow.label
         caption: switchRow.caption
+      }
+
+      PanelActionButton {
+        visible: switchRow.page > 0 && switchRow.gear && root.running
+        iconText: root.glyph(0xF0493)
+        tooltipText: root.t("settingsOf", switchRow.label)
+        foreground: root.dim
+        hoverColor: root.foreground
+        fontFamily: root.fontFamily
+        Layout.alignment: Qt.AlignVCenter
+        onClicked: root.openPage(switchRow.page)
       }
 
       ToggleSwitch {

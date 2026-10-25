@@ -6,9 +6,11 @@ local noise suppression and dictation, free and offline.
 - **Icon.** The waveform lights up in your theme's accent while kyrr listens
   or writes, and in red while it records a voice memo. Dimmed: kyrr is not
   running.
-- **Menu** (click): isolate your voice, improve voice, dictation, start or
-  stop a recording, open recordings, install an update, settings, quit.
-- **Middle click:** start or stop dictating. **Right click:** kyrr's settings.
+- **Menu** (click): the switches of kyrr's main page (isolate your voice,
+  improve voice, dictation, voice memo), each with its gear for its
+  settings; stop a running recording, open recordings, install an update,
+  Setup, quit.
+- **Middle click:** start or stop dictating. **Right click:** kyrr's window.
 - **Not installed yet?** The menu offers "Install kyrr": it runs the install
   command from kyrr's website in a terminal, so you see every step. kyrr is
   one file, `~/.local/bin/kyrr` (about 50 MB, plus the speech model you pick
