@@ -107,8 +107,9 @@ version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
   `isNew`, and `transcript` for the one asked for with `memo show`)
 - `general`: `language` (`de`, `en`, `multi`), `effort` (`lean`, `best`,
   `custom`), `liveText`, `overload`, `updateCheck`
-- `mic`: `name` (the one in use), `index` (the one picked in the first-run
-  setup), `list` (`id`, `name`)
+- `mic`: `name` and `current` (name and list `id` of the one in use, -1 for
+  none), `index` (the one picked in the first-run setup), `list` (`id`,
+  `name`)
 - `model`: `state` (`off`, `none`, `downloading`, `loading`, `ready`,
   `error`), `progress`, `size`
 - `update`: `state` (`idle`, `checking`, `latest`, `available`, `failed`,

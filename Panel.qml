@@ -383,8 +383,8 @@ Panel {
     onTriggered: {
       stateFile.reload()
       // Looks at kyrr's socket every 4 s while the menu is open or kyrr is
-      // starting, else every 30 s.
-      var often = root.opened || !root.running
+      // starting, else every 30 s (also while kyrr is not installed).
+      var often = root.opened || (!root.running && root.installed)
       if (ticks % (often ? 2 : 15) === 0) aliveProbe.running = true
       if (root.opened && root.running && ticks % 2 === 0) root.send("menu-open")
       if (ticks % 5 === 0 && widgetFile.path !== "") widgetFile.setText(Date.now() + "\n")
