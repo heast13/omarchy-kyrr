@@ -3,10 +3,10 @@
 [kyrr](https://github.com/heast13/kyrr) in the bar of [Omarchy](https://omarchy.org) 4:
 local noise suppression, dictation and voice memos, free and offline.
 
-kyrr comes in three versions, the same app each:
+kyrr comes in three versions, all the same app:
 
 - **Windows:** the [installer](https://github.com/heast13/kyrr/releases/latest/download/kyrr-setup.exe).
-- **Linux:** the AppImage for any other desktop, see [kyrr's install notes](https://github.com/heast13/kyrr#install-on-linux).
+- **Linux:** the AppImage for other desktops (beta), see [kyrr's install notes](https://github.com/heast13/kyrr#install-on-linux).
 - **Omarchy:** this plugin. It installs the Linux AppImage for you.
 
 More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13/kyrr).
