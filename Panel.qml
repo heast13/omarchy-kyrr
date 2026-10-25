@@ -89,6 +89,8 @@ Panel {
   property string capturing: ""
   // A recording asked to be deleted once already, by row id.
   property string deleting: ""
+  // Which button of a row of buttons the cursor is on.
+  property int pick: 0
   // Typing into a line or the text of a recording: keys go there.
   property bool typing: false
   // The text of the recording on show, as kyrr's text view has it, and the
@@ -189,6 +191,7 @@ Panel {
     do { i += dy } while (i >= 0 && i < root.rows.length && !Views.selectable(root.rows[i]))
     if (i >= 0 && i < root.rows.length) root.cursor = i
     root.deleting = ""
+    root.pick = 0
   }
 
   // ← and →: a choice or slider moves, anything with a page opens it, and
@@ -198,6 +201,11 @@ Panel {
     if (root.cursorActive && row && root.enabled(row)) {
       if (row.kind === "choice") return root.step(row, dx)
       if (row.kind === "slider") return root.command(row, Math.max(row.min, Math.min(row.max, row.value + dx * row.step)))
+      if (row.kind === "buttons" && root.pick + dx >= 0 && root.pick + dx < row.buttons.length) {
+        root.pick += dx
+        root.deleting = ""
+        return
+      }
       if (dx > 0 && row.page) return root.openPage(row.page)
     }
     if (dx < 0) root.back()
@@ -220,10 +228,9 @@ Panel {
       return
     }
     if (!root.enabled(row)) return
-    if (row.id === "copy") return root.copySheet()
-    if (row.id === "here") return root.playHere()
-    if (row.id === "deleteMemo") return root.remove()
     switch (row.kind) {
+    case "buttons":
+      return root.press(row, root.pick)
     case "edit":
     case "editor":
       var item = rowRepeater.itemAt(index)
@@ -241,6 +248,8 @@ Panel {
       return
     case "slider":
       return
+    case "memo":
+      return root.openPage(row.page)
     case "action":
       if (row.page) root.openPage(row.page)
       else root.command(row)
@@ -250,15 +259,36 @@ Panel {
     }
   }
 
+  // One button of a row of buttons, by click or Enter.
+  function press(row, at) {
+    var b = row.buttons[at]
+    if (!b) return
+    root.pick = at
+    if (b.id === "deleteMemo") return root.remove()
+    root.deleting = ""
+    if (b.id === "copy") return root.copySheet()
+    if (b.id === "here") return root.playHere()
+    root.command(b)
+  }
+
+  // A recording: Space plays it, as its ▶ does for the mouse.
+  function play() {
+    var row = root.rows[root.cursor]
+    if (row && row.kind === "memo") root.send(row.play)
+  }
+
   // x, or a recording's bin: once asks, twice deletes. On a recording's own
   // page the way back follows.
   function remove() {
     var row = root.rows[root.cursor]
-    if (!row || (row.kind !== "memo" && row.id !== "deleteMemo")) return
+    if (!row || (row.kind !== "memo" && !(row.kind === "buttons" && row.memo))) return
+    if (row.kind === "buttons") {
+      for (var i = 0; i < row.buttons.length; i++) if (row.buttons[i].id === "deleteMemo") root.pick = i
+    }
     if (root.deleting === row.id) {
       root.send("memo delete " + row.memo.id)
       root.deleting = ""
-      if (row.id === "deleteMemo") root.back()
+      if (row.kind === "buttons") root.back()
     } else {
       root.deleting = row.id
     }
@@ -331,6 +361,10 @@ Panel {
   function pointAt(index) {
     if (root.capturing !== "") return
     root.cursorActive = true
+    if (root.cursor !== index) {
+      root.pick = 0
+      root.deleting = ""
+    }
     root.cursor = index
   }
 
@@ -534,8 +568,16 @@ Panel {
         if (dy !== 0) root.moveCursor(dy)
         else root.sideways(dx)
       }
+      // Enter comes with returnRequested first, Space without: on a
+      // recording, Enter opens it and Space plays it.
+      property bool viaReturn: false
+      onReturnRequested: viaReturn = true
       onActivateRequested: {
+        var enter = viaReturn
+        viaReturn = false
         if (!root.cursorActive) { root.cursorActive = true; return }
+        var row = root.rows[root.cursor]
+        if (row && row.kind === "memo" && !enter) return root.play()
         root.activate(root.cursor)
       }
       onDeleteRequested: root.remove()
@@ -752,6 +794,7 @@ Panel {
                   : row.kind === "info" ? infoRow
                   : row.kind === "progress" ? progressRow
                   : row.kind === "separator" ? separatorRow
+                  : row.kind === "buttons" ? buttonsRow
                   : selectableRow
               }
             }
@@ -893,14 +936,29 @@ Panel {
         anchors.rightMargin: Style.space(10)
         spacing: Style.space(8)
 
+        // A recording's ▶ (or ■ while it plays) is a button of its own: a
+        // click elsewhere on the row opens the recording.
+        PanelActionButton {
+          visible: rowItem.r.kind === "memo"
+          iconText: root.glyph(rowItem.r.playing ? 0xF04DB : 0xF040A)
+          tooltipText: rowItem.r.playing ? root.t("stop") : root.t("play")
+          foreground: rowItem.r.playing || (rowItem.r.memo && rowItem.r.memo.isNew) ? Commons.Color.accent : rowItem.ink
+          hoverColor: Commons.Color.accent
+          fontFamily: root.fontFamily
+          Layout.preferredWidth: Style.font.icon * 1.4
+          Layout.alignment: Qt.AlignVCenter
+          onClicked: {
+            root.pointAt(rowItem.rowIndex)
+            root.play()
+          }
+        }
+
         Text {
-          visible: !!rowItem.r.icon || rowItem.r.kind === "radio" || rowItem.r.kind === "memo"
+          visible: !!rowItem.r.icon || rowItem.r.kind === "radio"
           textFormat: Text.PlainText
           text: rowItem.r.kind === "radio" ? root.glyph(rowItem.r.checked ? 0xF0134 : 0xF0130)
-            : rowItem.r.kind === "memo" ? root.glyph(rowItem.r.playing ? 0xF04DB : rowItem.r.memo.isNew ? 0xF0765 : 0xF040A)
             : rowItem.r.icon ? root.glyph(rowItem.r.icon) : ""
-          color: rowItem.r.kind === "memo" && (rowItem.r.memo.isNew || rowItem.r.playing) ? Commons.Color.accent
-            : rowItem.r.kind === "radio" && rowItem.r.checked ? Commons.Color.accent : rowItem.ink
+          color: rowItem.r.kind === "radio" && rowItem.r.checked ? Commons.Color.accent : rowItem.ink
           font.family: root.fontFamily
           font.pixelSize: Style.font.icon
           Layout.preferredWidth: Style.font.icon * 1.4
@@ -961,8 +1019,7 @@ Panel {
           Layout.alignment: Qt.AlignVCenter
         }
 
-        // A recording: its bin (click twice, like x twice) and its arrow to
-        // the text, both for the mouse.
+        // A recording: its bin, click twice like x twice.
         PanelActionButton {
           visible: rowItem.r.kind === "memo"
           iconText: root.glyph(0xF01B4)
@@ -977,19 +1034,8 @@ Panel {
           }
         }
 
-        PanelActionButton {
-          visible: rowItem.r.kind === "memo"
-          iconText: root.glyph(0xF0142)
-          tooltipText: root.t("showText")
-          foreground: root.dim
-          hoverColor: root.foreground
-          fontFamily: root.fontFamily
-          Layout.alignment: Qt.AlignVCenter
-          onClicked: root.openPage(rowItem.r.page)
-        }
-
         Text {
-          visible: !!rowItem.r.page && rowItem.r.kind !== "switch" && rowItem.r.kind !== "memo"
+          visible: !!rowItem.r.page && rowItem.r.kind !== "switch"
           textFormat: Text.PlainText
           text: root.glyph(0xF0142)
           color: root.dim
@@ -1028,6 +1074,98 @@ Panel {
         width: (parent.width - Style.space(20)) * Math.max(0, Math.min(1, rowItem.r.bar || 0))
         height: Style.space(2)
         color: Commons.Color.accent
+      }
+    }
+  }
+
+  // A row of buttons: ← and → pick one, Enter or a click presses it. The
+  // bin asks once, like x.
+  Component {
+    id: buttonsRow
+    Item {
+      id: buttonsItem
+      readonly property var r: parent ? parent.row : ({})
+      readonly property int rowIndex: parent ? parent.rowIndex : -1
+      readonly property bool asking: root.deleting !== "" && root.deleting === r.id
+
+      width: parent ? parent.width : 0
+      implicitHeight: buttonFlow.implicitHeight + (askText.visible ? askText.implicitHeight + Style.space(4) : 0)
+
+      Flow {
+        id: buttonFlow
+        width: parent.width
+        spacing: Style.space(6)
+
+        Repeater {
+          model: buttonsItem.r.buttons ? buttonsItem.r.buttons.length : 0
+          delegate: CursorSurface {
+            id: button
+            required property int index
+            readonly property var b: buttonsItem.r.buttons[index] || ({})
+            readonly property color ink: b.urgent ? root.urgent : root.foreground
+
+            hasCursor: root.cursorActive && root.cursor === buttonsItem.rowIndex && root.pick === index
+            bordered: true
+            foreground: ink
+            implicitWidth: buttonContent.implicitWidth + Style.space(20)
+            implicitHeight: buttonContent.implicitHeight + Style.space(12)
+
+            MouseArea {
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onEntered: {
+                root.pointAt(buttonsItem.rowIndex)
+                if (root.pick !== button.index) root.deleting = ""
+                root.pick = button.index
+              }
+              onClicked: {
+                root.pointAt(buttonsItem.rowIndex)
+                root.press(buttonsItem.r, button.index)
+              }
+            }
+
+            Row {
+              id: buttonContent
+              anchors.centerIn: parent
+              spacing: Style.space(6)
+
+              Text {
+                visible: !!button.b.icon
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: button.b.icon ? root.glyph(button.b.icon) : ""
+                color: button.ink
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.icon
+              }
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: button.b.label || ""
+                color: button.ink
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+              }
+            }
+          }
+        }
+      }
+
+      Text {
+        id: askText
+        visible: buttonsItem.asking
+        anchors.top: buttonFlow.bottom
+        anchors.topMargin: Style.space(4)
+        width: parent.width
+        leftPadding: Style.space(10)
+        textFormat: Text.PlainText
+        text: root.t("deleteForGood")
+        color: root.urgent
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
       }
     }
   }
@@ -1152,7 +1290,7 @@ Panel {
       hasCursor: root.cursorActive && root.cursor === rowIndex && !area.activeFocus
       bordered: true
       foreground: root.foreground
-      implicitHeight: Style.space(240)
+      implicitHeight: Style.space(220)
 
       // A click below the last line goes into the text too.
       MouseArea {

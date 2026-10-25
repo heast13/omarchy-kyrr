@@ -294,7 +294,7 @@ function recordings(k, t) {
     rows.push({ kind: "memo", id: "memo:" + r.id, memo: r, label: r.pending ? t("findingTitle") : r.title, isNew: r.isNew,
       playing: r.playing, value: r.playing ? m.playTime : "", bar: r.playing ? (m.playFraction || 0) : undefined,
       caption: r.when + " · " + r.length + (note ? " · " + note : r.text === "failed" ? " · " + t("textFailedShort") : ""),
-      page: "text:" + r.id, cmd: "memo play " + r.id })
+      page: "text:" + r.id, play: "memo play " + r.id })
   }
   rows.push({ kind: "separator" })
   rows.push({ kind: "action", id: "folder", icon: GLYPH.folder, label: t("openFolder"), cmd: "memo folder" })
@@ -323,15 +323,16 @@ function memoText(k, t, id) {
   // field is never made anew under the cursor.
   var open = sheet && sheet.id === r.id
   if (r.text === "ready" && open) {
-    rows.push({ kind: "section", label: t("text") })
     rows.push({ kind: "editor", id: "editor", memo: r.id })
     rows.push({ kind: "info", label: sheet.empty ? t("nothingUnderstood") : sheet.saved ? t("copyHint") : t("saving") })
-    rows.push({ kind: "action", id: "copy", icon: GLYPH.copy, label: sheet.copied ? "✓ " + t("copied") : t("copy"),
-      caption: t("copyCaption") })
-    rows.push({ kind: "action", id: "here", icon: GLYPH.play, label: t("playHere"), value: sheet.here || "" })
+    // A row of buttons each, so the whole page fits without scrolling.
+    rows.push({ kind: "buttons", id: "textTools", buttons: [
+      { id: "copy", icon: GLYPH.copy, label: sheet.copied ? "✓ " + t("copied") : t("copy") },
+      { id: "here", icon: GLYPH.play, label: t("playHere") + (sheet.here ? " " + sheet.here : "") },
+      { id: "opentext", icon: GLYPH.file, label: t("textFile"), cmd: "memo opentext" }
+    ] })
     rows.push({ kind: "choice", id: "stamps", label: t("times"),
       options: options(t, ["stampsOff", "stampsPosition", "stampsClock"]), value: sheet.stamps, cmd: "memo stamps {}" })
-    rows.push({ kind: "action", id: "opentext", icon: GLYPH.file, label: t("openText"), cmd: "memo opentext" })
   } else if (r.text === "writing" || r.waiting) {
     rows.push({ kind: "progress", label: textNote(r, t), value: r.progress || 0 })
     rows.push({ kind: "action", id: "cancelText", label: t("cancel"), cmd: "memo cancel " + r.id })
@@ -342,9 +343,10 @@ function memoText(k, t, id) {
     rows.push({ kind: "action", id: "write", icon: GLYPH.dictation, label: t("writeText"),
       caption: m.canWrite ? "" : t("needsModel"), cmd: "memo text " + r.id, enabled: !!m.canWrite })
   }
-  rows.push({ kind: "separator" })
-  rows.push({ kind: "action", id: "reveal", icon: GLYPH.folder, label: t("showInFolder"), cmd: "memo reveal " + r.id })
-  rows.push({ kind: "action", id: "deleteMemo", icon: GLYPH.trash, label: t("delete"), memo: r, urgent: true })
+  rows.push({ kind: "buttons", id: "fileTools", memo: r, buttons: [
+    { id: "reveal", icon: GLYPH.folder, label: t("showInFolder"), cmd: "memo reveal " + r.id },
+    { id: "deleteMemo", icon: GLYPH.trash, label: t("delete"), urgent: true }
+  ] })
   return { title: r.pending ? t("findingTitle") : r.title, rows: rows }
 }
 

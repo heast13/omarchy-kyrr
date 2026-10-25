@@ -20,7 +20,8 @@ More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13
   microphone, performance, check, updates) and the first-run setup. Walked
   with the keyboard like Omarchy's own menus: arrows or hjkl move, ← → change
   a choice, → opens a page, Enter takes, Esc goes back, x deletes a
-  recording (twice).
+  recording (twice). On a recording, Enter or a click opens it and Space or
+  its ▶ plays it.
 - **Middle click:** start or stop dictating.
 - **Not installed yet?** The menu offers "Install kyrr". It downloads the
   newest kyrr and its checksum from GitHub in a terminal, so you see every
