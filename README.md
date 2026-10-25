@@ -52,7 +52,7 @@ Needs a kyrr newer than 0.6.2.
 
 `v` (2), `pid`, `mode` (`idle`, `listening`, `writing`, `recording`), `lang`
 (`de`, `en`: the menu's language), `version`, `line` (the status line),
-`note` and `noteGood`, `setupDone`, `setupStep` (1 to 3), `news` (what this
+`note` and `noteGood`, `pulse` (`working`, `waiting` or `""`: the little wave after the line), `setupDone`, `setupStep` (1 to 3), `news` (what this
 version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
 `listen`, and:
 

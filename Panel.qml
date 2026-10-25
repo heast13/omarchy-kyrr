@@ -437,16 +437,64 @@ Panel {
           }
         }
 
-        Text {
-          visible: root.page === "main" && text !== ""
+        // The line under the name, and the little wave after it as in
+        // kyrr's window: it sways while kyrr works and breathes slowly while
+        // it waits for an app to use the microphone.
+        Row {
+          visible: root.page === "main" && statusLine.text !== ""
           width: parent.width
-          textFormat: Text.PlainText
-          text: root.running && root.kyrr.setupDone && root.kyrr.line ? root.kyrr.line : ""
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-          font.italic: true
-          wrapMode: Text.WordWrap
+          spacing: Style.space(8)
+
+          Text {
+            id: statusLine
+            width: Math.min(implicitWidth, parent.width - pulse.width - parent.spacing)
+            textFormat: Text.PlainText
+            text: root.running && root.kyrr.setupDone && root.kyrr.line ? root.kyrr.line : ""
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.italic: true
+            wrapMode: Text.WordWrap
+          }
+
+          Item {
+            id: pulse
+            readonly property string state_: root.running ? String(root.kyrr.pulse || "") : ""
+            readonly property bool working: state_ === "working"
+            readonly property bool moving: state_ !== ""
+            // Sways so far (1 = one full sway); slow on purpose.
+            property real phase: 0
+            property real lastTick: 0
+            width: 14
+            height: Math.max(16, statusLine.font.pixelSize * 1.3)
+
+            Timer {
+              interval: pulse.working ? 33 : 66
+              running: pulse.moving && root.opened
+              repeat: true
+              onRunningChanged: pulse.lastTick = Date.now()
+              onTriggered: {
+                var now = Date.now()
+                var step = Math.min(now - pulse.lastTick, 100)
+                pulse.lastTick = now
+                pulse.phase = (pulse.phase + step / (pulse.working ? 2200 : 4500)) % 1
+              }
+            }
+
+            Repeater {
+              model: 4
+              Rectangle {
+                readonly property real level: pulse.moving
+                  ? (pulse.working ? 1 : 0.3) * (0.5 + 0.5 * Math.sin((pulse.phase * 360 + index * 75) * Math.PI / 180)) : 0
+                x: index * 4
+                width: 2
+                height: Math.round(2 + 10 * level)
+                y: (pulse.height - height) / 2
+                color: Commons.Color.accent
+                opacity: pulse.moving ? 0.85 : 0.4
+              }
+            }
+          }
         }
 
         // A page below the main one: its title, and the way back.
