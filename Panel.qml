@@ -18,7 +18,7 @@ import "Texts.js" as Texts
 // socket, $XDG_RUNTIME_DIR/kyrr.sock; kyrr answers by rewriting the file.
 // The widget renews $XDG_RUNTIME_DIR/kyrr-widget every few seconds: while
 // that file is fresh, kyrr leaves out its tray icon and the window's buttons
-// to hide or quit, since this menu does both.
+// to hide or quit, since the widget does both (its menu, a right click quits).
 Panel {
   id: root
   moduleName: "heast13.kyrr"
@@ -54,7 +54,7 @@ Panel {
     if (kyrr.memos && kyrr.memo) list.push("stop")
     if (kyrr.memos) list.push("recordings")
     if (kyrr.update) list.push("update")
-    list.push("setup", "quit")
+    list.push("setup")
     return list
   }
   property int cursorIndex: 0
@@ -105,7 +105,6 @@ Panel {
     case "recordings": root.send("open-memos"); root.close(); return
     case "update": root.send("install-update"); root.close(); return
     case "setup": root.openPage(1); return
-    case "quit": root.send("quit"); root.close(); return
     case "start": if (root.bar) root.bar.run(root.startCommand); return
     case "install":
       if (root.bar) root.bar.run("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote(root.installCommand))
@@ -231,10 +230,11 @@ Panel {
     active: root.busy
     activeColor: root.mode === "recording" ? root.urgent : Commons.Color.accent
     dimmed: !root.running
-    tooltipText: root.opened ? "" : "kyrr: " + root.statusText()
+    tooltipText: root.opened ? "" : "kyrr: " + root.statusText() + (root.running ? "\n" + root.t("quitHint") : "")
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.MiddleButton && root.running) root.send("dictate")
-      else if (buttonCode === Qt.RightButton && root.running) root.send("show")
+      // Quitting is a right click on the icon, as in the tray.
+      else if (buttonCode === Qt.RightButton && root.running) root.send("quit")
       else root.toggle()
     }
   }
@@ -369,12 +369,6 @@ Panel {
             name: "setup"
             icon: 0xF066A
             label: root.t("setup")
-          }
-          ActionRow {
-            name: "quit"
-            icon: 0xF0425
-            label: root.t("quit")
-            hoverColor: root.urgent
           }
         }
       }
