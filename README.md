@@ -3,6 +3,14 @@
 [kyrr](https://github.com/heast13/kyrr) in the bar of [Omarchy](https://omarchy.org) 4:
 local noise suppression, dictation and voice memos, free and offline.
 
+kyrr comes in three versions, the same app each:
+
+- **Windows:** the [installer](https://github.com/heast13/kyrr/releases/latest/download/kyrr-setup.exe).
+- **Linux:** the AppImage for any other desktop, see [kyrr's install notes](https://github.com/heast13/kyrr#install-on-linux).
+- **Omarchy:** this plugin. It installs the Linux AppImage for you.
+
+More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13/kyrr).
+
 - **Icon.** The waveform lights up in your theme's accent while kyrr listens
   or writes, and in red while it records a voice memo. Dimmed: kyrr is not
   running.
