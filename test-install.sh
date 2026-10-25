@@ -17,11 +17,13 @@ install -m 755 "$app" "$HOME/.local/bin/kyrr.new"
 mv -f "$HOME/.local/bin/kyrr.new" "$HOME/.local/bin/kyrr"
 
 echo "== Plugin, Zweig rebuild"
-# The test plugin under its old id goes.
+# The test plugin under its old id goes (main still carries that id, so
+# "omarchy plugin add" would bring it back: the branch is cloned directly).
 omarchy plugin remove heast13.kyrr --yes >/dev/null 2>&1 || true
+rm -rf "$HOME/.config/omarchy/plugins/heast13.kyrr"
 dir="$HOME/.config/omarchy/plugins/io.github.heast13.kyrr"
 if [[ ! -d $dir/.git ]]; then
-  omarchy plugin add https://github.com/heast13/omarchy-kyrr.git --yes
+  git clone -q -b rebuild https://github.com/heast13/omarchy-kyrr.git "$dir"
 fi
 git -C "$dir" fetch -q origin rebuild
 git -C "$dir" checkout -q -B rebuild FETCH_HEAD
