@@ -462,36 +462,55 @@ Panel {
             readonly property string state_: root.running ? String(root.kyrr.pulse || "") : ""
             readonly property bool working: state_ === "working"
             readonly property bool moving: state_ !== ""
-            // Sways so far (1 = one full sway); slow on purpose.
+            // Sways so far (1 = one full sway); slow on purpose, this is
+            // kyrr after all.
             property real phase: 0
-            property real lastTick: 0
             width: 14
-            height: Math.max(16, statusLine.font.pixelSize * 1.3)
+            height: 16
 
-            Timer {
-              interval: pulse.working ? 33 : 66
-              running: pulse.moving && root.opened
-              repeat: true
-              onRunningChanged: pulse.lastTick = Date.now()
-              onTriggered: {
-                var now = Date.now()
-                var step = Math.min(now - pulse.lastTick, 100)
-                pulse.lastTick = now
-                pulse.phase = (pulse.phase + step / (pulse.working ? 2200 : 4500)) % 1
-              }
+            // Driven by the screen's frames, not a timer, so it glides.
+            FrameAnimation {
+              running: pulse.moving && root.opened && pulse.parent.visible
+              onTriggered: pulse.phase = (pulse.phase + Math.min(frameTime, 0.1) * 1000 / (pulse.working ? 2200 : 4500)) % 1
             }
 
             Repeater {
               model: 4
-              Rectangle {
+              Item {
                 readonly property real level: pulse.moving
                   ? (pulse.working ? 1 : 0.3) * (0.5 + 0.5 * Math.sin((pulse.phase * 360 + index * 75) * Math.PI / 180)) : 0
+                // As in kyrr's window: whole pixels (an even number, so it
+                // stays centred) as a solid middle, the rest as a fading
+                // pixel at each end, so the bar grows smoothly.
+                readonly property real size: 2 + 10 * level
+                readonly property real middle: 2 * Math.floor(size / 2)
+                readonly property real rest: (size - middle) / 2
+                readonly property real alpha: pulse.moving ? 0.85 : 0.4
                 x: index * 4
                 width: 2
-                height: Math.round(2 + 10 * level)
-                y: (pulse.height - height) / 2
-                color: Commons.Color.accent
-                opacity: pulse.moving ? 0.85 : 0.4
+                height: pulse.height
+
+                Rectangle {
+                  y: (parent.height - height) / 2
+                  width: 2
+                  height: parent.middle
+                  color: Commons.Color.accent
+                  opacity: parent.alpha
+                }
+                Rectangle {
+                  y: (parent.height - parent.middle) / 2 - 1
+                  width: 2
+                  height: 1
+                  color: Commons.Color.accent
+                  opacity: parent.alpha * parent.rest
+                }
+                Rectangle {
+                  y: (parent.height + parent.middle) / 2
+                  width: 2
+                  height: 1
+                  color: Commons.Color.accent
+                  opacity: parent.alpha * parent.rest
+                }
               }
             }
           }
