@@ -23,8 +23,8 @@ import "Views.js" as Views
 // seconds; kyrr quits once that file goes stale.
 Panel {
   id: root
-  moduleName: "heast13.kyrr"
-  ipcTarget: "heast13.kyrr"
+  moduleName: "io.github.heast13.kyrr"
+  ipcTarget: "io.github.heast13.kyrr"
 
   readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") || ""
   readonly property string socketPath: runtimeDir + "/kyrr.sock"
@@ -37,8 +37,17 @@ Panel {
   // When the plugin last started kyrr, so a kyrr that fails to start is
   // not started again every few seconds.
   property real startedAt: 0
+  // The state file's text as last read, so an unchanged file changes nothing.
+  property string stateText: ""
+  // How many looks in a row kyrr answered without a state this plugin knows.
+  property int oddLooks: 0
 
   readonly property bool running: alive && kyrr !== null && kyrr.v === 2
+  // A kyrr that answers but speaks another version of the state: an older
+  // kyrr wants an update, a newer one a newer plugin. A minute of looks, so
+  // a kyrr still starting up is not taken for an old one.
+  readonly property bool mismatch: !running && alive && oddLooks >= 15
+  readonly property bool pluginOld: mismatch && kyrr !== null && kyrr.v > 2
   readonly property string mode: running ? String(kyrr.mode || "idle") : ""
   readonly property bool busy: mode === "listening" || mode === "writing" || mode === "recording"
   // Omarchy's own language (Commons.I18n) came after 4.0; the system's
@@ -56,10 +65,23 @@ Panel {
   property var stack: ["main"]
   property var cursors: ({})
   readonly property string page: stack[stack.length - 1]
-  readonly property var view: running ? Views.build(page, kyrr, t)
-    : { title: "", rows: [installed
-        ? { kind: "info", label: t("starting") }
-        : { kind: "action", id: "install", icon: Views.GLYPH.install, label: t("install"), caption: t("installHint") }] }
+  readonly property var updateRow: ({ kind: "action", id: "install", icon: Views.GLYPH.update, label: t("updateKyrr"), caption: t("updateKyrrHint") })
+  readonly property var view: {
+    if (running) {
+      try {
+        return Views.build(page, kyrr, t)
+      } catch (e) {
+        // A field this plugin wants is missing: kyrr is older than it.
+        console.warn("kyrr: " + e)
+        return { title: "", rows: [updateRow] }
+      }
+    }
+    if (pluginOld) return { title: "", rows: [{ kind: "info", label: t("pluginOld") }] }
+    if (mismatch) return { title: "", rows: [updateRow] }
+    return { title: "", rows: [installed
+      ? { kind: "info", label: t("starting") }
+      : { kind: "action", id: "install", icon: Views.GLYPH.install, label: t("install"), caption: t("installHint") }] }
+  }
   readonly property var rows: view.rows
   property int cursor: -1
   property bool cursorActive: false
@@ -76,9 +98,10 @@ Panel {
     return String.fromCodePoint(code)
   }
 
-  // One line to the running kyrr.
+  // One line to the running kyrr, without a login shell: the line and the
+  // socket only ever land in positional parameters.
   function send(line) {
-    if (root.bar) root.bar.run("printf '%s\\n' " + Util.shellQuote(line) + " | socat - UNIX-CONNECT:" + Util.shellQuote(root.socketPath))
+    Quickshell.execDetached(["sh", "-c", "printf '%s\\n' \"$1\" | socat - \"UNIX-CONNECT:$2\"", "sh", line, root.socketPath])
   }
 
   function command(row, value) {
@@ -89,13 +112,23 @@ Panel {
   // kyrr sits in ~/.local/bin, which the shell's own PATH may leave out.
   readonly property string findKyrr: "k=$(command -v kyrr || echo \"$HOME/.local/bin/kyrr\"); "
   readonly property string startCommand: findKyrr + "test -x \"$k\" && exec \"$k\" --background"
-  // The install command from kyrr's website, in Omarchy's floating terminal so
-  // every step shows; kyrr then starts in the background and this menu runs
-  // its first-run setup.
-  readonly property string installCommand: "mkdir -p ~/.local/bin && "
-    + "curl -fL -o ~/.local/bin/kyrr.new https://github.com/heast13/kyrr/releases/latest/download/kyrr-x86_64.AppImage && "
-    + "chmod +x ~/.local/bin/kyrr.new && mv -f ~/.local/bin/kyrr.new ~/.local/bin/kyrr && "
-    + "setsid -f ~/.local/bin/kyrr --background >/dev/null 2>&1"
+  // Installs or updates kyrr in Omarchy's floating terminal, so every step
+  // shows: the newest release and its checksum from GitHub, checked before
+  // anything runs. kyrr then takes over from a running one in the background,
+  // and this menu runs its first-run setup.
+  readonly property string releases: "https://github.com/heast13/kyrr/releases/latest/download/"
+  // The steps run in a subshell, so a failed one still ends in Omarchy's
+  // done message with its code, and the download folder always goes.
+  readonly property string installCommand: "d=$(mktemp -d); ( set -e; cd \"$d\"; "
+    + "curl -fLO " + releases + "kyrr-x86_64.AppImage; "
+    + "curl -fLO " + releases + "kyrr-x86_64.AppImage.sha256; "
+    + "sha256sum -c kyrr-x86_64.AppImage.sha256; "
+    + "mkdir -p ~/.local/bin; install -m 755 kyrr-x86_64.AppImage ~/.local/bin/kyrr.new; "
+    + "mv -f ~/.local/bin/kyrr.new ~/.local/bin/kyrr; "
+    + "command -v fusermount3 >/dev/null || command -v fusermount >/dev/null || "
+    + "echo 'kyrr needs FUSE to start: sudo pacman -S fuse3'; "
+    + "setsid -f ~/.local/bin/kyrr --replace --background >/dev/null 2>&1 ); "
+    + "r=$?; rm -rf \"$d\"; (exit $r)"
 
   function startKyrr() {
     if (!root.bar || root.running || !root.installed) return
@@ -268,6 +301,7 @@ Panel {
     root.cursorActive = false
     root.cursor = root.firstSelectable()
     stateFile.reload()
+    aliveProbe.running = true
     if (!root.running) lookForKyrr.running = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -289,30 +323,38 @@ Panel {
     watchChanges: true
     printErrors: false
     onLoaded: {
+      var content = text()
+      // The same as last time: every page and row stays as it is.
+      if (content === root.stateText) return
       var parsed = null
       try {
-        parsed = JSON.parse(text())
+        parsed = JSON.parse(content)
       } catch (e) {
         // A read in the middle of kyrr's write: keep what was there.
         return
       }
+      root.stateText = content
       root.kyrr = parsed
       if (!root.alive) aliveProbe.running = true
     }
     onLoadFailed: {
+      root.stateText = ""
       root.kyrr = null
-      root.alive = false
     }
     onFileChanged: reload()
   }
 
   // A kyrr that crashed leaves its file behind: whether something answers
-  // on its socket says if it still runs. "background" is the word kyrr
-  // ignores. The shell cannot read /proc.
+  // on its socket says if it still runs (and an older kyrr answers without
+  // writing the file). "background" is the word kyrr ignores. The shell
+  // cannot read /proc.
   Process {
     id: aliveProbe
-    command: ["sh", "-c", "printf background | socat - UNIX-CONNECT:" + Util.shellQuote(root.socketPath) + " 2>/dev/null"]
-    onExited: function(exitCode) { root.alive = exitCode === 0 && root.kyrr !== null }
+    command: ["sh", "-c", "printf background | socat - \"UNIX-CONNECT:$1\" 2>/dev/null", "sh", root.socketPath]
+    onExited: function(exitCode) {
+      root.alive = exitCode === 0
+      root.oddLooks = root.alive && !root.running ? root.oddLooks + 1 : 0
+    }
   }
 
   // Tells kyrr that this widget sits in the bar.
@@ -340,12 +382,13 @@ Panel {
     property int ticks: 0
     onTriggered: {
       stateFile.reload()
-      if (root.kyrr !== null && ticks % 2 === 0) aliveProbe.running = true
+      // Looks at kyrr's socket every 4 s while the menu is open or kyrr is
+      // starting, else every 30 s.
+      var often = root.opened || !root.running
+      if (ticks % (often ? 2 : 15) === 0) aliveProbe.running = true
       if (root.opened && root.running && ticks % 2 === 0) root.send("menu-open")
-      if (ticks % 5 === 0) {
-        if (widgetFile.path !== "") widgetFile.setText(Date.now() + "\n")
-        if (!root.running) lookForKyrr.running = true
-      }
+      if (ticks % 5 === 0 && widgetFile.path !== "") widgetFile.setText(Date.now() + "\n")
+      if (ticks % 15 === 0 && !root.running && !root.alive) lookForKyrr.running = true
       ticks++
     }
   }

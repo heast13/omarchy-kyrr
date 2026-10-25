@@ -249,7 +249,7 @@ function mic(k, t) {
   var rows = []
   for (var i = 0; i < k.mic.list.length; i++) {
     var m = k.mic.list[i]
-    rows.push({ kind: "radio", id: "mic:" + m.id, label: m.name, checked: m.name === k.mic.name, cmd: "mic " + m.id })
+    rows.push({ kind: "radio", id: "mic:" + m.id, label: m.name, checked: m.id === k.mic.current, cmd: "mic " + m.id })
   }
   return { title: t("microphone"), rows: rows }
 }

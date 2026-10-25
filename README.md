@@ -14,9 +14,11 @@ local noise suppression, dictation and voice memos, free and offline.
   a choice, → opens a page, Enter takes, Esc goes back, x deletes a
   recording (twice).
 - **Middle click:** start or stop dictating.
-- **Not installed yet?** The menu offers "Install kyrr": it runs the install
-  command from kyrr's website in a terminal, so you see every step. kyrr is
-  one file, `~/.local/bin/kyrr` (about 60 MB, plus the speech model).
+- **Not installed yet?** The menu offers "Install kyrr". It downloads the
+  newest kyrr and its checksum from GitHub in a terminal, so you see every
+  step, checks it and starts it. kyrr is one file, `~/.local/bin/kyrr`
+  (about 50 MB, plus the speech model it downloads in its setup). An older
+  kyrr gets an "Update kyrr" row the same way.
 
 On Omarchy with this widget kyrr has no window and no tray icon. The widget
 starts kyrr; to switch kyrr off, disable the plugin in Omarchy's menu
@@ -24,15 +26,52 @@ starts kyrr; to switch kyrr off, disable the plugin in Omarchy's menu
 the screen stays. kyrr also joins Omarchy's dictation (Setup > Defaults >
 Dictation, Omarchy 4.5 and newer) and takes your theme's colours and font.
 
+## Requirements
+
+- Omarchy 4.0 or newer (joining Omarchy's dictation needs 4.5).
+- kyrr itself, which the menu installs: an AppImage, so it needs FUSE
+  (`fuse3`, usually there through Nautilus), PipeWire, glibc 2.39 and, for the
+  noise filter, a processor with AVX2.
+- `curl` and `socat`, both part of Omarchy.
+
 ## Install
 
 ```sh
 omarchy plugin add https://github.com/heast13/omarchy-kyrr.git --enable
 ```
 
-Or in the Omarchy menu: Setup > Plugins > Add. Remove the widget with
-`omarchy plugin remove heast13.kyrr`. To remove kyrr itself, see
-[Uninstalling](https://github.com/heast13/kyrr/blob/main/docs/install.md).
+Or in the Omarchy menu: Setup > Plugins > Add. Then click the kyrr icon in
+the bar.
+
+## What kyrr changes on your system
+
+The widget writes nothing but `$XDG_RUNTIME_DIR/kyrr-widget`. kyrr, once
+installed, adds:
+
+- `~/.local/bin/kyrr`, and on Omarchy 4.5 and newer the scripts
+  `~/.local/bin/omarchy-dictation-kyrr` and
+  `~/.local/bin/omarchy-install-dictation-kyrr`, so it shows up in Setup >
+  Defaults > Dictation. It picks itself there only when no dictation program
+  is chosen or the chosen one is not installed.
+- A marked block (`>>> kyrr` … `<<< kyrr`) in
+  `~/.config/omarchy/extensions/omarchy-menu.jsonc` for that menu row, and a
+  marked block with its dictation and voice memo keys in Hyprland's
+  configuration.
+- Its settings in `~/.config/kyrr`, the speech model in `~/.local/share/kyrr`,
+  voice memos in `~/Documents/kyrr`, and a microphone called "kyrr" in
+  PipeWire.
+
+It never writes over a file of yours: its scripts carry a mark, and its
+blocks are replaced in place.
+
+## Remove
+
+```sh
+omarchy plugin remove io.github.heast13.kyrr
+```
+
+That turns kyrr off too. To remove kyrr itself and everything above, see
+[Uninstalling](https://github.com/heast13/kyrr/blob/main/docs/install.md#uninstall-on-linux).
 
 ## How it works
 
@@ -50,7 +89,7 @@ Needs a kyrr newer than 0.6.2.
 
 ### State
 
-`v` (2), `pid`, `mode` (`idle`, `listening`, `writing`, `recording`), `lang`
+`v` (2), `pid` (kyrr's process id), `mode` (`idle`, `listening`, `writing`, `recording`), `lang`
 (`de`, `en`: the menu's language), `version`, `line` (the status line),
 `note` and `noteGood`, `pulse` (`working`, `waiting` or `""`: the little wave after the line), `setupDone`, `setupStep` (1 to 3), `news` (what this
 version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,

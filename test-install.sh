@@ -17,13 +17,13 @@ install -m 755 "$app" "$HOME/.local/bin/kyrr.new"
 mv -f "$HOME/.local/bin/kyrr.new" "$HOME/.local/bin/kyrr"
 
 echo "== Plugin, Zweig rebuild"
-dir="$HOME/.config/omarchy/plugins/heast13.kyrr"
+dir="$HOME/.config/omarchy/plugins/io.github.heast13.kyrr"
 if [[ ! -d $dir/.git ]]; then
   omarchy plugin add https://github.com/heast13/omarchy-kyrr.git --yes
 fi
 git -C "$dir" fetch -q origin rebuild
 git -C "$dir" checkout -q -B rebuild FETCH_HEAD
-omarchy plugin enable heast13.kyrr >/dev/null 2>&1 || true
+omarchy plugin enable io.github.heast13.kyrr >/dev/null 2>&1 || true
 omarchy-restart-shell >/dev/null 2>&1 || true
 
 echo "== kyrr starten"

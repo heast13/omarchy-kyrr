@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "heast13.kyrr",
+  "id": "io.github.heast13.kyrr",
   "name": "kyrr",
   "version": "1.0.0",
   "author": "heast13",
   "license": "MIT",
-  "description": "kyrr in the bar: local noise suppression, dictation and voice memos, free and offline. The menu is all of kyrr, walked with the keyboard; it installs kyrr when it is missing.",
+  "description": "kyrr in the bar: local noise suppression, dictation and voice memos, free and offline, all from one keyboard-driven menu.",
   "kinds": [
     "bar-widget"
   ],
