@@ -91,9 +91,11 @@ Panel {
     root.send(word)
   }
 
-  readonly property string openCommand: "command -v kyrr >/dev/null && exec kyrr; "
+  // kyrr sits in ~/.local/bin, which the shell's own PATH may leave out.
+  readonly property string findKyrr: "k=$(command -v kyrr || echo \"$HOME/.local/bin/kyrr\"); "
+  readonly property string openCommand: findKyrr + "test -x \"$k\" && exec \"$k\"; "
     + "exec gio launch \"${XDG_DATA_HOME:-$HOME/.local/share}/applications/io.github.heast13.kyrr.desktop\""
-  readonly property string startCommand: "command -v kyrr >/dev/null && exec kyrr --background; " + openCommand
+  readonly property string startCommand: findKyrr + "test -x \"$k\" && exec \"$k\" --background; " + openCommand
   // The install command from kyrr's website, in Omarchy's floating terminal so
   // every step shows, then kyrr's first start (its setup window).
   readonly property string installCommand: "mkdir -p ~/.local/bin && "
@@ -185,7 +187,7 @@ Panel {
       }
       root.kyrr = parsed
       root.wanted = ({})
-      processFile.reload()
+      if (!root.alive) aliveProbe.running = true
     }
     onLoadFailed: {
       root.kyrr = null
@@ -195,13 +197,13 @@ Panel {
     onFileChanged: reload()
   }
 
-  // A kyrr that crashed leaves its file behind: its process is gone.
-  FileView {
-    id: processFile
-    path: root.kyrr && root.kyrr.pid ? "/proc/" + root.kyrr.pid + "/comm" : ""
-    printErrors: false
-    onLoaded: root.alive = text().trim() === "kyrr"
-    onLoadFailed: root.alive = false
+  // A kyrr that crashed leaves its file behind: whether something answers
+  // on its socket says if it still runs. "background" is the word kyrr
+  // ignores (a start at sign-in while it runs). The shell cannot read /proc.
+  Process {
+    id: aliveProbe
+    command: ["sh", "-c", "printf background | socat - UNIX-CONNECT:" + Util.shellQuote(root.socketPath) + " 2>/dev/null"]
+    onExited: function(exitCode) { root.alive = exitCode === 0 && root.kyrr !== null }
   }
 
   // Tells kyrr that this widget sits in the bar.
@@ -213,7 +215,7 @@ Panel {
 
   Process {
     id: lookForKyrr
-    command: ["bash", "-lc", "command -v kyrr >/dev/null || test -f \"${XDG_DATA_HOME:-$HOME/.local/share}/applications/io.github.heast13.kyrr.desktop\""]
+    command: ["bash", "-lc", "command -v kyrr >/dev/null || test -x \"$HOME/.local/bin/kyrr\" || test -f \"${XDG_DATA_HOME:-$HOME/.local/share}/applications/io.github.heast13.kyrr.desktop\""]
     onExited: function(code) { root.installed = code === 0 }
   }
 
@@ -226,7 +228,7 @@ Panel {
     property int ticks: 0
     onTriggered: {
       stateFile.reload()
-      processFile.reload()
+      if (root.kyrr !== null && ticks % 2 === 0) aliveProbe.running = true
       if (root.opened && root.live && ticks % 2 === 0) root.send("menu-open")
       if (ticks % 5 === 0) {
         if (widgetFile.path !== "") widgetFile.setText(Date.now() + "\n")
