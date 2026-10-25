@@ -42,7 +42,9 @@ Panel {
   readonly property bool live: running && kyrr.line !== undefined
   readonly property string mode: running ? String(kyrr.mode || "idle") : ""
   readonly property bool busy: mode === "listening" || mode === "writing" || mode === "recording"
-  readonly property string language: running && kyrr.lang ? kyrr.lang : Commons.I18n.language
+  // Omarchy's own language (Commons.I18n) came after 4.0; the system's
+  // until kyrr says which it speaks.
+  readonly property string language: running && kyrr.lang ? kyrr.lang : Qt.locale().name
   readonly property bool german: language.indexOf("de") === 0
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
@@ -165,7 +167,7 @@ Panel {
     cursorIndex = 0
     stateFile.reload()
     lookForKyrr.running = true
-    Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   FileView {
@@ -256,12 +258,13 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: panel.loadedContent
+    focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(340))
-    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(560))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(560))
 
-    content: PanelKeyCatcher {
-      implicitHeight: column.implicitHeight
+    // A plain child rather than `content:`, which Omarchy 4.0 does not know.
+    PanelKeyCatcher {
+      id: keyCatcher
       anchors.fill: parent
       onMoveRequested: function(dx, dy) { root.moveCursor(dy) }
       onActivateRequested: if (root.cursorActive) root.activate(root.rows[root.cursorIndex])
