@@ -108,10 +108,26 @@ Panel {
     return String.fromCodePoint(code)
   }
 
-  // One line to the running kyrr, without a login shell: the line and the
-  // socket only ever land in positional parameters.
+  // One line to the running kyrr. The line goes in through the helper's
+  // standard input, never through its arguments: memo names, titles and
+  // search text must not show in the process list.
   function send(line) {
-    Quickshell.execDetached(["sh", "-c", "printf '%s\\n' \"$1\" | socat - \"UNIX-CONNECT:$2\"", "sh", line, root.socketPath])
+    sender.createObject(root, { line: line })
+  }
+
+  Component {
+    id: sender
+    Process {
+      property string line: ""
+      command: ["socat", "-", "UNIX-CONNECT:" + root.socketPath]
+      stdinEnabled: true
+      running: true
+      onStarted: {
+        write(line + "\n")
+        stdinEnabled = false
+      }
+      onExited: destroy()
+    }
   }
 
   function command(row, value) {
@@ -136,7 +152,7 @@ Panel {
     + "mkdir -p ~/.local/bin; install -m 755 kyrr-x86_64.AppImage ~/.local/bin/kyrr.new; "
     + "mv -f ~/.local/bin/kyrr.new ~/.local/bin/kyrr; "
     + "command -v fusermount3 >/dev/null || command -v fusermount >/dev/null || "
-    + "echo 'kyrr needs FUSE to start: sudo pacman -S fuse3'; "
+    + "echo 'kyrr needs FUSE (package fuse3) to start.'; "
     + "setsid -f ~/.local/bin/kyrr --replace --background >/dev/null 2>&1 ); "
     + "r=$?; rm -rf \"$d\"; (exit $r)"
 
