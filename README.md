@@ -89,8 +89,10 @@ The widget is QML only:
 - While kyrr runs it keeps its whole state as one line of JSON in
   `$XDG_RUNTIME_DIR/kyrr/state` and deletes the file when it quits.
 - The menu changes something by writing one line to kyrr's socket,
-  `$XDG_RUNTIME_DIR/kyrr.sock`, with `socat` (part of Omarchy). kyrr answers
-  by rewriting the state file.
+  `$XDG_RUNTIME_DIR/kyrr.sock`, with `socat` (part of Omarchy). The line goes
+  in through `socat`'s standard input, never its arguments, so memo names,
+  titles and search text do not show in the process list. kyrr answers by
+  rewriting the state file.
 - Every 10 seconds the widget renews `$XDG_RUNTIME_DIR/kyrr-widget`. kyrr
   quits once that file is older than 30 seconds.
 
