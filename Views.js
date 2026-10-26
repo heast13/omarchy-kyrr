@@ -102,9 +102,10 @@ function updateRows(k, t, always) {
         label: failed ? t("tryAgain") : t("update", u.version),
         caption: failed ? t("updateFailed") : t("updateOut", u.version), cmd: "update install" })
     else
-      rows.push({ kind: "info", label: t("updateElsewhere", u.version) })
-    if (failed || !u.installable)
-      rows.push({ kind: "action", id: "updatePage", icon: GLYPH.news, label: t("downloadPage"), cmd: "update page" })
+      // Not installable by kyrr itself (Linux): the plugin's own installer
+      // swaps the AppImage, as it does for the first install.
+      rows.push({ kind: "action", id: "install", icon: GLYPH.update, accent: true,
+        label: t("update", u.version), caption: t("updateWindow", u.version) })
     if (u.news) rows.push({ kind: "action", id: "updateNews", icon: GLYPH.news, label: t("whatsNew"), page: "updateNews" })
     if (!always) rows.push({ kind: "action", id: "updateDismiss", label: t("notNow"), cmd: "update dismiss" })
   }
