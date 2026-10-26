@@ -557,7 +557,7 @@ Panel {
     focusTarget: keyCatcher
     // A recording's text gets room to be read.
     contentWidth: panel.fittedContentWidth(Style.space(root.page.indexOf("text:") === 0 ? 520 : 360))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(root.page.indexOf("text:") === 0 ? 780 : 660))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(root.page.indexOf("text:") === 0 ? 900 : 660))
 
     // A plain child rather than `content:`, which Omarchy 4.0 does not know.
     PanelKeyCatcher {
@@ -766,7 +766,7 @@ Panel {
         Flickable {
           id: list
           width: parent.width
-          height: Math.min(rowColumn.implicitHeight, Style.space(root.page.indexOf("text:") === 0 ? 660 : 520))
+          height: Math.min(rowColumn.implicitHeight, Style.space(root.page.indexOf("text:") === 0 ? 780 : 520))
           contentHeight: rowColumn.implicitHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
@@ -1290,7 +1290,7 @@ Panel {
       hasCursor: root.cursorActive && root.cursor === rowIndex && !area.activeFocus
       bordered: true
       foreground: root.foreground
-      implicitHeight: Style.space(330)
+      implicitHeight: Style.space(440)
 
       // A click below the last line goes into the text too.
       MouseArea {
