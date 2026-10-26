@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -557,7 +558,8 @@ Panel {
     focusTarget: keyCatcher
     // A recording's text gets room to be read.
     contentWidth: panel.fittedContentWidth(Style.space(root.page.indexOf("text:") === 0 ? 520 : 360))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(root.page.indexOf("text:") === 0 ? 900 : 660))
+    // As tall as the page needs: Omarchy keeps the card on the screen.
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(4000))
 
     // A plain child rather than `content:`, which Omarchy 4.0 does not know.
     PanelKeyCatcher {
@@ -609,6 +611,7 @@ Panel {
 
         // The main page: kyrr's name, what it does, and the line under it.
         PanelHero {
+          id: hero
           visible: root.page === "main" || !root.running || !root.kyrr.setupDone
           width: parent.width
           title: root.running && !root.kyrr.setupDone ? root.view.title : "kyrr"
@@ -631,6 +634,7 @@ Panel {
         // kyrr's window: it sways while kyrr works and breathes slowly while
         // it waits for an app to use the microphone.
         Row {
+          id: statusRow
           visible: root.page === "main" && statusLine.text !== ""
           width: parent.width
           spacing: Style.space(8)
@@ -761,12 +765,22 @@ Panel {
           }
         }
 
-        PanelSeparator { foreground: root.foreground }
+        PanelSeparator { id: separator; foreground: root.foreground }
 
+        // Every page shows whole; only a screen too small for it scrolls.
         Flickable {
           id: list
+          readonly property real room: {
+            var card = panel.availableCardHeight > 0 ? panel.availableCardHeight : Screen.height - Style.space(60)
+            var used = panel.padding * 2 + Style.space(8) + separator.height + column.spacing * 2
+            if (hero.visible) used += hero.height + column.spacing
+            if (statusRow.visible) used += statusRow.height + column.spacing
+            if (header.visible) used += header.height + column.spacing
+            if (note.visible) used += note.height + column.spacing
+            return Math.max(Style.space(240), card - used)
+          }
           width: parent.width
-          height: Math.min(rowColumn.implicitHeight, Style.space(root.page.indexOf("text:") === 0 ? 780 : 520))
+          height: Math.min(rowColumn.implicitHeight, room)
           contentHeight: rowColumn.implicitHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
@@ -804,6 +818,7 @@ Panel {
         // The note at the bottom of kyrr's window elsewhere: problems in red,
         // a microphone that came back in the accent.
         Text {
+          id: note
           visible: text !== ""
           width: parent.width
           textFormat: Text.PlainText
