@@ -85,5 +85,7 @@ the run). `judge.mjs` fails the job on:
   keyboard code runs only as far as page changes and the install button go.
 - The fake kyrr only writes down what it is sent. Whether kyrr understands a
   line is what the contract is for.
+- A long list of recordings scrolls on any screen, as it should; the load
+  states have six recordings, which fit a screen 1080 px high.
 - The font is JetBrains Mono Nerd Font at Omarchy's default size. A user who
   makes the text bigger may see pages scroll that do not here.

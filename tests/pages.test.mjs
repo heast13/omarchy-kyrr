@@ -13,7 +13,7 @@ const panelQml = source("Panel.qml")
 
 // ------------------------------------------------------- what Panel.qml has
 
-// The rows Panel.qml draws: the Loader's chain picks a component for six
+// The rows Panel.qml draws: the Loader's chain picks a component for seven
 // kinds, and the rest are the selectable ones its comment lists.
 const drawn = new Set([...panelQml.matchAll(/row\.kind === "(\w+)"\s*\?/g)].map((m) => m[1]))
 const selectableList = panelQml.match(/Every row the cursor can stop on: ([^.]*)\./)
@@ -51,7 +51,7 @@ function checkCommand(problems, where, line, via) {
     problems.push(`${where}: ${via} "${line}" is no command of kyrr's contract`)
 }
 
-function checkView(view, k, german, page, t) {
+function checkView(view, k, page, t) {
   const problems = []
   const where = `${page}`
   const rows = view.rows
@@ -151,7 +151,7 @@ for (const { name, state } of variants(contract.state)) {
         problems.push(`${label}: Views.build throws: ${e.stack.split("\n")[0]}`)
         continue
       }
-      problems.push(...checkView(view, k, german, label, t))
+      problems.push(...checkView(view, k, label, t))
       // A page that needs the local AI is not one without it: Panel.qml
       // catches a throw as "kyrr is too old", so these must fall back.
       const needs = page === "ai" ? !(k.ai && k.ai.features && k.ai.asr) : page === "asr" ? !(k.ai && k.ai.asr) : false
