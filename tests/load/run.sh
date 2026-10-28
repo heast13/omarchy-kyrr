@@ -97,6 +97,8 @@ start_sway() {
   [ -S "$XDG_RUNTIME_DIR/wayland-1" ] || { log "sway did not start"; cat "$out/sway.log"; exit 1; }
   SWAYSOCK=$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'sway-ipc.*.sock' | head -n 1)
   export SWAYSOCK
+  # Quickshell's IPC only finds instances on the display it is told about.
+  export WAYLAND_DISPLAY=wayland-1
   [ "$(swaymsg -t get_outputs | jq length)" -gt 0 ] || swaymsg create_output >/dev/null
   swaymsg "output * resolution $1 position 0 0" >/dev/null
   sleep 1
@@ -110,13 +112,13 @@ stop_sway() {
 }
 
 start_qs() {
-  env QT_QPA_PLATFORM=wayland QT_QUICK_BACKEND=software WAYLAND_DISPLAY=wayland-1 NO_COLOR=1 \
+  env QT_QPA_PLATFORM=wayland QT_QUICK_BACKEND=software NO_COLOR=1 \
     KYRR_PLUGIN_DIR="$plugin" KYRR_RUN_LOG="$out/run.log" PATH="$work/bin:$PATH" \
     quickshell -n -p "$cfg" >>"$out/qs.log" 2>&1 &
   qs_pid=$!
   pids+=("$qs_pid")
   local ready=""
-  for _ in $(seq 120); do
+  for _ in $(seq 60); do
     kill -0 "$qs_pid" 2>/dev/null || { log "quickshell died"; tail -n 40 "$out/qs.log"; return 1; }
     if metrics | jq -e '.loaded' >/dev/null 2>&1; then ready=1; break; fi
     sleep 0.5
