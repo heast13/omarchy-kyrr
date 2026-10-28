@@ -44,3 +44,13 @@ test("texts: every key written out in Panel.qml and Views.js exists in both lang
   }
   assert.deepEqual(problems, [])
 })
+
+test("texts: percent signs follow the language (English 125%, German 125 %)", () => {
+  const problems = []
+  for (const [lang, table] of [["de", Texts.de], ["en", Texts.en]])
+    for (const [key, value] of Object.entries(table)) {
+      if (lang === "en" && / %/.test(value)) problems.push(`en.${key}: space before %`)
+      if (lang === "de" && /\d%|\{\}%/.test(value)) problems.push(`de.${key}: no space before %`)
+    }
+  assert.deepEqual(problems, [])
+})

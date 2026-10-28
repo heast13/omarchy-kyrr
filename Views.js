@@ -473,7 +473,7 @@ function memoRework(sheet, t) {
     buttons.push({ id: "restore", icon: GLYPH.update, label: t("restoreOriginal"), cmd: "memo restore" })
   if (buttons.length) rows.push({ kind: "buttons", id: "reworkTools", buttons: buttons })
   if (w.ready && w.busy)
-    rows.push({ kind: "progress", label: Math.round((w.progress || 0) * 100) + " %", value: w.progress || 0 })
+    rows.push({ kind: "progress", label: t("progressPercent", Math.round((w.progress || 0) * 100)), value: w.progress || 0 })
   if (w.note) rows.push({ kind: "info", label: w.note })
   return rows
 }
