@@ -123,7 +123,8 @@ Panel {
     return false
   }
   readonly property bool promptDirty: root.editorItem !== null && root.editorItem.channel === "prompt"
-    && root.editorItem.shown === root.promptId && root.editorItem.text !== root.promptText
+    && root.editorItem.shown === root.editorItem.memo && root.editorItem.shown === root.promptId
+    && root.editorItem.text !== root.promptText
   readonly property bool promptOwn: !!(running && kyrr.ai && kyrr.ai.prompt && kyrr.ai.prompt.own)
 
   function t(key, value) {
@@ -248,7 +249,7 @@ Panel {
   // kyrr is told to take it.
   function savePrompt() {
     var e = root.editorItem
-    if (!e || e.channel !== "prompt" || promptEditFile.path === "" || !root.promptDirty) return
+    if (!e || e.channel !== "prompt" || promptEditFile.path === "" || e.shown !== e.memo || !root.promptDirty) return
     promptEditFile.setText(e.memo + "\n" + e.text)
     delete root.promptDrafts[e.memo]
     root.send("set ai.promptSave")
@@ -1480,7 +1481,7 @@ Panel {
       id: compareItem
       readonly property int rowIndex: parent ? parent.rowIndex : -1
       readonly property string memo: parent && parent.row.memo ? parent.row.memo : ""
-      readonly property bool haveData: root.compareId === memo && root.compareData.length > 0
+      readonly property bool haveData: root.compareId === memo
       readonly property real columnGap: Style.space(24)
 
       width: parent ? parent.width : 0
