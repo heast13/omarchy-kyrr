@@ -67,13 +67,18 @@ function aiCaption(a, t) {
 }
 
 // What reworking does and what it translates into, once a model is set up.
+// Fixing can also put the word order right (`fixOrder`, which kyrr 0.8.1 and
+// older do not have, so there is no switch then).
 function aiChoices(a, t) {
-  return [
+  var rows = [
     { kind: "choice", id: "rework", label: t("rework"),
-      options: options(t, ["off", "reworkFix", "reworkPolish", "reworkBusiness"]), value: a.rework, cmd: "set ai.rework {}" },
-    { kind: "choice", id: "translate", label: t("translateInto"),
-      options: targets(t), value: a.translate || "off", cmd: "set ai.translate {}" }
+      options: options(t, ["off", "reworkFix", "reworkPolish", "reworkBusiness"]), value: a.rework, cmd: "set ai.rework {}" }
   ]
+  if (a.fixOrder !== undefined)
+    rows.push({ kind: "switch", id: "fixOrder", label: t("fixOrder"), checked: a.fixOrder, cmd: "toggle ai.fixOrder" })
+  rows.push({ kind: "choice", id: "translate", label: t("translateInto"),
+    options: targets(t), value: a.translate || "off", cmd: "set ai.translate {}" })
+  return rows
 }
 
 // Local AI on the main page, like its card in kyrr's window.

@@ -196,7 +196,7 @@ start_kyrr() {
   mkdir -p "$XDG_RUNTIME_DIR/kyrr" "$HOME/.local/bin"
   printf '#!/bin/sh\nexit 0\n' >"$HOME/.local/bin/kyrr"
   chmod +x "$HOME/.local/bin/kyrr"
-  printf '#!/bin/sh\ncat\necho\n' >"$work/sink.sh"
+  printf '#!/bin/sh\nprintf "%%s\\n" "$(cat)"\n' >"$work/sink.sh"
   chmod +x "$work/sink.sh"
   socat "UNIX-LISTEN:$XDG_RUNTIME_DIR/kyrr.sock,fork,unlink-early" "SYSTEM:$work/sink.sh >> $out/commands.log" &
   pids+=("$!")
