@@ -22,6 +22,13 @@ More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13
   a choice, → opens a page, Enter takes, Esc goes back, x deletes a
   recording (twice). On a recording, Enter or a click opens it and Space or
   its ▶ plays it.
+- **Local AI** (kyrr 0.8.0, experimental): Setup > Experimental AI features
+  adds a Local AI row to the menu. Its page sets your language model
+  (address, model, key, a test), what it does to each dictation (fix
+  mishearings, reword, professional) and the language it translates into.
+  The same rework and translation work on a recording's text, with
+  "Restore original". Setup > Own dictation model sends dictation to a
+  speech server of your own.
 - **Middle click:** start or stop dictating.
 - **Not installed yet?** The menu offers "Install kyrr". It downloads the
   newest kyrr and its checksum from GitHub in a terminal, so you see every
@@ -96,7 +103,8 @@ The widget is QML only:
 - Every 10 seconds the widget renews `$XDG_RUNTIME_DIR/kyrr-widget`. kyrr
   quits once that file is older than 30 seconds.
 
-Needs a kyrr newer than 0.6.2.
+Needs a kyrr newer than 0.6.2, and 0.8.0 or newer for Local AI. With an older
+kyrr the menu simply has no Local AI and no own dictation model.
 
 ### State
 
@@ -129,7 +137,12 @@ this version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
   `none`/`writing`/`ready`/`failed`, `waiting`, `progress`, `left`, `isNew`,
   `playing`), `sheet` (null, or the recording opened with `memo show <id>`:
   `id`, `title`, `when`, `stamps` (0 off, 1 position, 2 time of day),
-  `saved`, `copied`, `empty`, `here` (where "Play from here" starts))
+  `saved`, `copied`, `empty`, `here` (where "Play from here" starts),
+  `rework`: the language model on this text, `ready` (Local AI is set
+  up), `busy`, `progress` (0 to 1), `note`, `action` (0 off, 1 fix, 2
+  reword, 3 professional), `target` (language code, `""` for none),
+  `original` (an earlier text is kept and can be brought back); absent in
+  kyrr before 0.8.0)
 - `general`: `language` (`de`, `en`, `multi`), `effort` (`lean`, `best`,
   `custom`), `liveText`, `overload`, `updateCheck`
 - `mic`: `name` and `current` (name and list `id` of the one in use, -1 for
@@ -140,6 +153,19 @@ this version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
 - `update`: `state` (`idle`, `checking`, `latest`, `available`, `failed`,
   `downloading`), `phase` (`""`, `installing`, `downloadFailed`), `version`,
   `progress`, `news`, `installable`, `dismissed`
+- `ai` (kyrr 0.8.0; absent before, then the menu has no Local AI): the
+  language model and the speech server of your own. `features` (Setup >
+  Experimental AI features: the menu shows Local AI only with it on), `on`
+  (Local AI), `ready` (address and model are set), `rework` (0 off, 1 fix
+  mishearings, 2 reword, 3 professional), `translate` (language code, `""`
+  for none; the 17 languages `en de fr es it nl pt pl cs sk sv da no fi hu ro
+  hr`), `url`, `model`, `models` (what the server offers, at most 30),
+  `keySet` (whether a key is saved; the key itself is never in the state),
+  `busy` (asking the server), `note` (how the last test went), `found` (name
+  of a server found on this computer, `""` for none), `prompt` (`index` 0 to 3:
+  fix, reword, professional, translate; `own`: that instruction is yours, not
+  kyrr's), and `asr`: the speech server, with `on` and the same `url`,
+  `model`, `models`, `keySet`, `busy`, `note`, `found`
 
 The text of the recording in `sheet` is in `$XDG_RUNTIME_DIR/kyrr/sheet`,
 as kyrr's text view shows it (with the chosen stamps). What the menu types
@@ -148,13 +174,25 @@ into it goes to `$XDG_RUNTIME_DIR/kyrr/edit`; kyrr takes that file with
 
 ### Commands
 
-- `toggle filter|voice|dictation|memos|voice.rumble|voice.pops|voice.distance|voice.autoLevel|memos.autoText|general.liveText|general.overload|general.updateCheck|listen`
+- `toggle filter|voice|dictation|memos|voice.rumble|voice.pops|voice.distance|voice.autoLevel|memos.autoText|general.liveText|general.overload|general.updateCheck|listen|ai.features|ai.on`
 - `set filter.strength <0-2>`, `set voice.tone <name>`,
   `set voice.body|presence|air <dB>`, `set voice.comp|ess <0-3>`,
   `set voice.reset`, `set dictation.key|memos.key <keysym name>` (F1 to
   F24, Pause, Scroll_Lock, Control_R, Menu), `set dictation.keyReset|memos.keyReset`,
   `set dictation.hold|memos.hold true|false`,
   `set general.language de|en|multi`, `set general.effort lean|best`
+- Local AI: `set ai.rework <0-3>`, `set ai.translate <code>|off`,
+  `set ai.prompt <0-3>`, `set ai.promptReset` (the shown instruction back
+  to kyrr's), and for the language model `set ai.url|ai.model|ai.key <text>`
+  (address and key are saved and tried at once), `set ai.connect` (connect
+  and test), `set ai.take` (use the server found on this computer),
+  `set ai.look language|speech` (look for one). The speech server has
+  `set asr.on true|false`, `set asr.url|asr.model|asr.key <text>`,
+  `set asr.connect` and `set asr.take`. On the open recording:
+  `set memos.reworkAction <0-3>`, `set memos.reworkTarget <code>|off`, then
+  `memo rework` (apply), `memo stoprework` and `memo restore` (the original
+  back). The key goes through the socket like any other line, never through
+  an argument.
 - `mic <id>` (first-run setup: picks it; else: moves the filter to it),
   `mic unmute|repair|default`
 - `memo start|stop|folder|seen|edit|opentext`,
@@ -167,6 +205,15 @@ into it goes to `$XDG_RUNTIME_DIR/kyrr/edit`; kyrr takes that file with
   `open feedback|licenses`
 - Also: `dictate`, `menu-open` (every few seconds while the menu is open:
   kyrr keeps its status line, notes and meters going), `menu-closed`
+
+## Known gaps
+
+What kyrr's window does with Local AI and the menu does not (yet):
+
+- The comparison of a recording's text with the one before its rework
+  (Text | Compare). The menu applies a rework and brings the original back.
+- Reading and changing the wording of the instructions. The menu shows
+  whether one is your own and sets it back to kyrr's.
 
 ## License
 

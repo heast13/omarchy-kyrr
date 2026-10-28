@@ -10,7 +10,8 @@
 //   action   does `cmd`, or opens `page`
 //   memo     a recording: Enter or a click plays it, → or its arrow shows
 //            its text, x or its bin deletes it
-//   edit     a line to type into (search, a title); Enter starts typing
+//   edit     a line to type into (search, a title, an address, a key with
+//            `secret`: hidden, never filled in); Enter starts typing
 //   editor   the text of a recording, to read, correct and select
 //   section  a heading, never selected
 //   info     a line of text, never selected
@@ -22,8 +23,14 @@ var GLYPH = {
   stop: 0xF04DB, recordings: 0xF1359, update: 0xF01DA, setup: 0xF066A,
   install: 0xF01DA, mic: 0xF036C, folder: 0xF0770, play: 0xF040A,
   check: 0xF02CB, about: 0xF02FD, news: 0xF0EBB, feedback: 0xF0361,
-  next: 0xF0142, search: 0xF0349, copy: 0xF018F, file: 0xF0219, trash: 0xF01B4
+  next: 0xF0142, search: 0xF0349, copy: 0xF018F, file: 0xF0219, trash: 0xF01B4,
+  ai: 0xF06A9
 }
+
+// The languages translations go into, in the order of kyrr's list (the
+// codes `ai.translate` and `sheet.rework.target` carry), with their texts.
+var TARGETS = ["en", "de", "fr", "es", "it", "nl", "pt", "pl", "cs", "sk", "sv", "da", "no", "fi", "hu", "ro", "hr"]
+var TARGET_KEYS = ["tEn", "tDe", "tFr", "tEs", "tIt", "tNl", "tPt", "tPl", "tCs", "tSk", "tSv", "tDa", "tNo", "tFi", "tHu", "tRo", "tHr"]
 
 function pick(list, index) {
   return list[Math.max(0, Math.min(list.length - 1, index))]
@@ -40,6 +47,112 @@ function named(t, keys) {
   var list = []
   for (var i = 0; i < keys.length; i++) list.push({ value: keys[i], label: t(keys[i]) })
   return list
+}
+
+// Translating or not, as a choice: "off" for none, else a language's code.
+function targets(t) {
+  var list = [{ value: "off", label: t("off") }]
+  for (var i = 0; i < TARGETS.length; i++) list.push({ value: TARGETS[i], label: t(TARGET_KEYS[i]) })
+  return list
+}
+
+// Local AI (kyrr 0.8.0) is the `ai` object of the state. A kyrr without it
+// has none of the pages below: they stay out of the menu.
+function aiShown(k) {
+  return !!(k.ai && k.ai.features)
+}
+
+function aiCaption(a, t) {
+  return !a.on ? t("localAiOff") : !a.ready ? t("localAiNotSet") : t("localAiOn")
+}
+
+// What reworking does and what it translates into, once a model is set up.
+function aiChoices(a, t) {
+  return [
+    { kind: "choice", id: "rework", label: t("rework"),
+      options: options(t, ["off", "reworkFix", "reworkPolish", "reworkBusiness"]), value: a.rework, cmd: "set ai.rework {}" },
+    { kind: "choice", id: "translate", label: t("translateInto"),
+      options: targets(t), value: a.translate || "off", cmd: "set ai.translate {}" }
+  ]
+}
+
+// Local AI on the main page, like its card in kyrr's window.
+function localAiRows(a, t) {
+  var rows = [{ kind: "switch", id: "localAi", icon: GLYPH.ai, page: "ai", label: t("localAi"),
+    checked: a.on, caption: aiCaption(a, t), cmd: "toggle ai.on" }]
+  if (a.on && !a.ready)
+    rows.push({ kind: "action", id: "aiSetUp", label: t("setUp"), page: "ai", accent: true })
+  else if (a.on) rows = rows.concat(aiChoices(a, t))
+  return rows
+}
+
+// A server of your own, language model or speech: where it is, which model,
+// a key if it wants one (typed, never shown), and a test. `p` is the first
+// word of its settings (`ai`, `asr`).
+function serverRows(s, t, p, address) {
+  var rows = []
+  if (s.found) {
+    rows.push({ kind: "info", label: t("aiRunning", s.found) })
+    rows.push({ kind: "action", id: p + "Take", icon: GLYPH.check, label: t("useIt"), cmd: "set " + p + ".take", accent: true })
+  }
+  rows.push({ kind: "edit", id: p + "Url", label: t("address"), placeholder: address, value: s.url || "",
+    cmd: "set " + p + ".url {}" })
+  var models = s.models || []
+  if (models.length) {
+    var list = []
+    var known = false
+    for (var i = 0; i < models.length; i++) {
+      list.push({ value: models[i], label: models[i] })
+      if (models[i] === s.model) known = true
+    }
+    if (s.model && !known) list.unshift({ value: s.model, label: s.model })
+    rows.push({ kind: "choice", id: p + "Model", label: t("modelLabel"), options: list, value: s.model,
+      cmd: "set " + p + ".model {}" })
+  } else {
+    rows.push({ kind: "edit", id: p + "Model", label: t("modelLabel"), placeholder: t("modelWait"), value: s.model || "",
+      cmd: "set " + p + ".model {}" })
+  }
+  rows.push({ kind: "info", label: t("aiKey") })
+  rows.push({ kind: "edit", id: p + "Key", secret: true, placeholder: s.keySet ? "••••••••" : "", value: "",
+    cmd: "set " + p + ".key {}" })
+  rows.push({ kind: "action", id: p + "Connect", icon: GLYPH.check, label: t(s.busy ? "asking" : "connect"),
+    enabled: !s.busy, cmd: "set " + p + ".connect" })
+  if (s.note) rows.push({ kind: "info", label: s.note })
+  return rows
+}
+
+// The gear of Local AI: the switch and its choices, the language model, and
+// what the model is told for each task.
+function ai(k, t) {
+  var a = k.ai
+  var rows = [{ kind: "switch", id: "localAi", label: t("localAi"), checked: a.on, caption: aiCaption(a, t), cmd: "toggle ai.on" }]
+  if (a.on && a.ready) rows = rows.concat(aiChoices(a, t))
+  rows.push({ kind: "section", label: t("aiModel") })
+  rows.push({ kind: "info", label: t("aiRequires") })
+  rows = rows.concat(serverRows(a, t, "ai", "http://192.168.1.10:11434"))
+  rows.push({ kind: "section", label: t("whichModel") })
+  rows.push({ kind: "info", label: t("modelTips") })
+  // The wording itself is read and changed in kyrr's window only; here you
+  // see whether an instruction is your own and can bring kyrr's back.
+  var p = a.prompt || { index: 0, own: false }
+  rows.push({ kind: "separator" })
+  rows.push({ kind: "info", label: t("promptsHint") })
+  rows.push({ kind: "choice", id: "prompt", label: t("prompts"),
+    options: options(t, ["reworkFix", "reworkPolish", "reworkBusiness", "translate"]), value: p.index,
+    caption: t(p.own ? "promptOwn" : "promptDefault"), cmd: "set ai.prompt {}" })
+  if (p.index === 3) rows.push({ kind: "info", label: t("promptTarget", "{target}") })
+  rows.push({ kind: "action", id: "promptReset", icon: GLYPH.update, label: t("reset"), enabled: !!p.own, cmd: "set ai.promptReset" })
+  return { title: t("localAi"), rows: rows }
+}
+
+// Dictation through a speech server of your own.
+function asr(k, t) {
+  var s = k.ai.asr
+  var rows = [{ kind: "choice", id: "asrOn", label: t("asrTitle"),
+    options: [{ value: false, label: t("builtIn") }, { value: true, label: t("ownServer") }], value: !!s.on,
+    caption: t(s.on ? "asrOwn" : "asrBuiltIn"), cmd: "set asr.on {}" }]
+  if (s.on) rows = rows.concat(serverRows(s, t, "asr", "http://192.168.1.10:8000"))
+  return { title: t("asrTitle"), rows: rows }
 }
 
 // What the filter says on the main page and its own: switched on or off,
@@ -126,6 +239,7 @@ function main(k, t) {
     caption: !k.dictation.on ? t("dictationOff", k.dictation.key)
       : k.dictation.ready ? t("dictationOn", k.dictation.key) : t("dictationNotReady") })
   rows = rows.concat(dictationHelp(k, t))
+  if (aiShown(k)) rows = rows.concat(localAiRows(k.ai, t))
   rows.push({ kind: "switch", id: "memos", icon: GLYPH.memos, page: "memos", label: t("memos"),
     checked: k.memos.on, cmd: "toggle memos",
     caption: !k.memos.on ? t("memosOff")
@@ -303,6 +417,32 @@ function recordings(k, t) {
   return { title: t("recordings"), rows: rows }
 }
 
+// The language model on a recording's text, as under the text in kyrr's
+// window: rework, translate, apply, and the original back. (The comparison
+// of the two texts is in the window only.) An older kyrr says nothing of it.
+function memoRework(sheet, t) {
+  var w = sheet.rework
+  var rows = []
+  if (!w) return rows
+  if (w.ready) {
+    rows.push({ kind: "choice", id: "memoRework", label: t("rework"), enabled: !w.busy,
+      options: options(t, ["off", "reworkFix", "reworkPolish", "reworkBusiness"]), value: w.action, cmd: "set memos.reworkAction {}" })
+    rows.push({ kind: "choice", id: "memoTranslate", label: t("translateInto"), enabled: !w.busy,
+      options: targets(t), value: w.target || "off", cmd: "set memos.reworkTarget {}" })
+  }
+  var buttons = []
+  if (w.ready)
+    buttons.push({ id: "rework", icon: GLYPH.ai, label: t(w.busy ? "cancel" : "apply"),
+      cmd: w.busy ? "memo stoprework" : "memo rework", enabled: w.busy || (!sheet.empty && (w.action > 0 || !!w.target)) })
+  if (w.original && !w.busy)
+    buttons.push({ id: "restore", icon: GLYPH.update, label: t("restoreOriginal"), cmd: "memo restore" })
+  if (buttons.length) rows.push({ kind: "buttons", id: "reworkTools", buttons: buttons })
+  if (w.ready && w.busy)
+    rows.push({ kind: "progress", label: Math.round((w.progress || 0) * 100) + " %", value: w.progress || 0 })
+  if (w.note) rows.push({ kind: "info", label: w.note })
+  return rows
+}
+
 // One recording, like the text view of kyrr's window: its title to rename,
 // playing, the text to read, correct and copy, and the rest.
 function memoText(k, t, id) {
@@ -324,7 +464,8 @@ function memoText(k, t, id) {
   // field is never made anew under the cursor.
   var open = sheet && sheet.id === r.id
   if (r.text === "ready" && open) {
-    rows.push({ kind: "editor", id: "editor", memo: r.id })
+    // The language model at work: the text is not typed into meanwhile.
+    rows.push({ kind: "editor", id: "editor", memo: r.id, locked: !!(sheet.rework && sheet.rework.busy) })
     rows.push({ kind: "info", label: sheet.empty ? t("nothingUnderstood") : sheet.saved ? t("copyHint") : t("saving") })
     // A row of buttons each, so the whole page fits without scrolling.
     rows.push({ kind: "buttons", id: "textTools", buttons: [
@@ -334,6 +475,7 @@ function memoText(k, t, id) {
     ] })
     rows.push({ kind: "choice", id: "stamps", label: t("times"),
       options: options(t, ["stampsOff", "stampsPosition", "stampsClock"]), value: sheet.stamps, cmd: "memo stamps {}" })
+    rows = rows.concat(memoRework(sheet, t))
   } else if (r.text === "writing" || r.waiting) {
     rows.push({ kind: "progress", label: textNote(r, t), value: r.progress || 0 })
     rows.push({ kind: "action", id: "cancelText", label: t("cancel"), cmd: "memo cancel " + r.id })
@@ -372,6 +514,12 @@ function setup(k, t) {
   }
   rows.push({ kind: "switch", id: "overload", label: t("overload"), checked: g.overload,
     caption: t(g.overload ? "overloadOn" : "overloadOff"), cmd: "toggle general.overload" })
+  if (k.ai && k.ai.asr) {
+    rows.push({ kind: "action", id: "ownDictation", icon: GLYPH.dictation, label: t("ownDictation"),
+      value: k.ai.asr.on ? t("ownServer") : "", caption: t("ownDictationHint"), page: "asr" })
+    rows.push({ kind: "switch", id: "aiFeatures", label: t("experimental"), checked: k.ai.features,
+      caption: t(k.ai.features ? "experimentalOn" : "experimentalOff"), cmd: "toggle ai.features" })
+  }
   rows.push({ kind: "section", label: t("check") })
   if (k.filter.attached !== false && k.levels) {
     rows.push({ kind: "progress", label: t("levelYourMic"), value: k.levels.before || 0 })
@@ -488,6 +636,8 @@ function page_(page, k, t) {
   case "mic": return mic(k, t)
   case "about": return about(k, t)
   case "updateNews": return updateNews(k, t)
+  case "ai": return aiShown(k) && k.ai.asr ? ai(k, t) : main(k, t)
+  case "asr": return k.ai && k.ai.asr ? asr(k, t) : main(k, t)
   default: return main(k, t)
   }
 }

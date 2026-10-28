@@ -132,7 +132,8 @@ Panel {
 
   function command(row, value) {
     if (!row.cmd) return
-    root.send(value === undefined ? row.cmd : row.cmd.replace("{}", String(value)))
+    // A function, so a "$" in the value is no pattern of replace().
+    root.send(value === undefined ? row.cmd : row.cmd.replace("{}", function() { return String(value) }))
   }
 
   // kyrr sits in ~/.local/bin, which the shell's own PATH may leave out.
@@ -283,8 +284,12 @@ Panel {
     root.pick = at
     if (b.id === "deleteMemo") return root.remove()
     root.deleting = ""
+    if (b.enabled === false) return
     if (b.id === "copy") return root.copySheet()
     if (b.id === "here") return root.playHere()
+    // What was typed into the text goes first, so the language model and
+    // the original see the text as it is on the screen.
+    if (b.id === "rework" || b.id === "restore") root.flushEdit()
     root.command(b)
   }
 
@@ -318,7 +323,7 @@ Panel {
       root.flushEdit()
       root.send("memo rename " + JSON.stringify([row.rename, text.trim()]))
     } else if (row.cmd) {
-      root.send(row.cmd.replace("{}", text))
+      root.send(row.cmd.replace("{}", function() { return text }))
     }
   }
 
@@ -412,6 +417,10 @@ Panel {
     if (!root.running) return
     root.send(root.page.indexOf("text:") === 0 ? "memo show " + root.page.slice(5) : "memo show")
     if (root.page === "recordings") root.send("memo seen")
+    // A server's page opened with no address yet: kyrr looks for one on
+    // this computer and offers it.
+    if (root.page === "ai") root.send("set ai.look language")
+    else if (root.page === "asr") root.send("set ai.look speech")
   }
   // While the menu is open kyrr keeps its status line, notes and meters
   // going for it; it hears "menu-open" every few seconds.
@@ -1136,6 +1145,7 @@ Panel {
             readonly property color ink: b.urgent ? root.urgent : root.foreground
 
             hasCursor: root.cursorActive && root.cursor === buttonsItem.rowIndex && root.pick === index
+            opacity: b.enabled === false ? 0.45 : 1
             bordered: true
             foreground: ink
             implicitWidth: buttonContent.implicitWidth + Style.space(20)
@@ -1270,7 +1280,11 @@ Panel {
           foreground: root.foreground
           font.family: root.fontFamily
           verticalPadding: Style.space(3)
-          Component.onCompleted: text = editItem.r.value || ""
+          Component.onCompleted: {
+            text = editItem.r.value || ""
+            // A key shows as dots, whatever the field offers to hide it.
+            if (editItem.r.secret && input.echoMode !== undefined) input.echoMode = TextInput.Password
+          }
           onActiveFocusChanged: {
             root.typing = activeFocus
             if (activeFocus) root.pointAt(editItem.rowIndex)
@@ -1282,6 +1296,8 @@ Panel {
           onAccepted: {
             liveTimer.stop()
             root.submitEdit(editItem.r, text)
+            // A key is not kept in the field once it is sent.
+            if (editItem.r.secret) text = ""
             taken = true
             keyCatcher.forceActiveFocus()
           }
@@ -1312,6 +1328,8 @@ Panel {
       id: editorItem
       readonly property int rowIndex: parent ? parent.rowIndex : -1
       readonly property string memo: parent && parent.row.memo ? parent.row.memo : ""
+      // The language model is working on the text: it is read-only meanwhile.
+      readonly property bool locked: !!(parent && parent.row && parent.row.locked)
 
       function startTyping() {
         area.forceActiveFocus()
@@ -1358,6 +1376,7 @@ Panel {
           width: flick.width
           wrapMode: TextEdit.Wrap
           textFormat: TextEdit.PlainText
+          readOnly: editorItem.locked
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
