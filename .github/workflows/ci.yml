@@ -1,0 +1,132 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The contract kyrr and this menu share (packaging/omarchy/contract.json in
+  # heast13/kyrr) is read from this ref.
+  KYRR_REF: main
+  # The Omarchy the menu has to load on, besides the newest stable tag.
+  OMARCHY_OLDEST: v4.0.6
+
+jobs:
+  versions:
+    name: Omarchy versions
+    runs-on: ubuntu-24.04
+    outputs:
+      tags: ${{ steps.resolve.outputs.tags }}
+    steps:
+      - id: resolve
+        run: |
+          # Stable tags only: v4.5.0-rc2 and v4.0.0-beta3 are not.
+          newest=$(git ls-remote --tags --refs https://github.com/basecamp/omarchy 'v*' \
+            | sed 's|.*refs/tags/||' | grep -E '^v[0-9]+(\.[0-9]+)*$' | sort -V | tail -n 1)
+          test -n "$newest"
+          tags=$(printf '%s\n' "$OMARCHY_OLDEST" "$newest" | sort -uV | jq -R . | jq -sc .)
+          echo "oldest $OMARCHY_OLDEST, newest stable $newest"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+  omarchy:
+    name: Omarchy ${{ matrix.tag }}
+    needs: versions
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJSON(needs.versions.outputs.tags) }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Omarchy ${{ matrix.tag }}
+        run: git clone --depth 1 --branch "${{ matrix.tag }}" https://github.com/basecamp/omarchy "$RUNNER_TEMP/omarchy"
+      - name: Plugin manifest
+        # What `omarchy plugin add` checks before it enables a plugin.
+        run: |
+          command -v jq >/dev/null || sudo apt-get install -y jq
+          "$RUNNER_TEMP/omarchy/bin/omarchy-plugin-validate" .
+      - name: Text format
+        # Omarchy's own scan: every Text with a dynamic binding sets textFormat.
+        # It reads ROOT/shell, so the plugin's QML goes into a tree like that.
+        run: |
+          scan=$(find "$RUNNER_TEMP/omarchy/test" -name qml-text-format-scan.py | head -n 1)
+          test -n "$scan"
+          tree=$(mktemp -d)
+          mkdir -p "$tree/shell/plugins/kyrr"
+          cp ./*.qml "$tree/shell/plugins/kyrr/"
+          violations=$(python3 -I "$scan" "$tree")
+          if [ -n "$violations" ]; then
+            echo "$violations"
+            exit 1
+          fi
+
+  pages:
+    name: Pages
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Shell scripts
+        run: shellcheck --severity=warning update.sh tests/*.sh tests/load/*.sh
+      - name: Update flow
+        run: bash tests/update-flow.test.sh
+      - name: Pages and texts
+        run: |
+          node --version
+          node --test tests/*.test.mjs
+      - name: Window controls without a counterpart
+        run: node tests/warnings.mjs
+
+  load:
+    name: Load on Omarchy ${{ matrix.tag }}
+    needs: versions
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJSON(needs.versions.outputs.tags) }}
+    steps:
+      - name: Packages
+        # Quickshell and a headless Wayland compositor with layer-shell, the
+        # font Omarchy uses, and what the test script needs.
+        run: |
+          pacman --noconfirm --disable-sandbox -Syu
+          pacman --noconfirm --disable-sandbox -S --needed git nodejs jq socat grim sway quickshell \
+            qt6-wayland qt6-svg qt6-5compat fontconfig libcap ttf-jetbrains-mono-nerd
+          # sway ships with file capabilities that a container cannot grant,
+          # which makes it fail to start at all.
+          setcap -r /usr/bin/sway
+      - uses: actions/checkout@v7
+      - name: Omarchy ${{ matrix.tag }}
+        run: git clone --depth 1 --branch "${{ matrix.tag }}" https://github.com/basecamp/omarchy "$RUNNER_TEMP/omarchy"
+      - name: Load the menu
+        run: bash tests/load/run.sh "$RUNNER_TEMP/omarchy" 1366x768,1920x1080,2560x1440 load-out
+      - name: The test can fail
+        # A plugin with a deliberate QML error must fail the load test, and the
+        # log check must name the error.
+        run: |
+          if KYRR_BREAK=1 KYRR_LOAD_QUICK=1 bash tests/load/run.sh "$RUNNER_TEMP/omarchy" 1920x1080 selftest-out > selftest.log 2>&1; then
+            echo "a plugin with a QML error passed the load test"
+            exit 1
+          fi
+          grep -F "ReferenceError" selftest-out/summary.md
+      - name: What the run saw
+        if: always()
+        run: |
+          cat load-out/summary.md || true
+          echo "--- quickshell log without INFO, unique lines"
+          grep -v '^  INFO' load-out/qs.log | sort | uniq -c | sort -rn | head -n 60 || true
+          echo "--- what reached the fake kyrr"
+          sort -u load-out/commands.log | head -n 60 || true
+          echo "--- what the menu would have run"
+          cat load-out/run.log || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: load-${{ matrix.tag }}
+          path: load-out
+          if-no-files-found: ignore
