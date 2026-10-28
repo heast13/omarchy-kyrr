@@ -11,8 +11,7 @@ permissions:
 env:
   # The contract kyrr and this menu share (packaging/omarchy/contract.json in
   # heast13/kyrr) is read from this ref.
-  # TODO: switch to main once kyrr's contract PR is merged.
-  KYRR_REF: claude/project-thread-esj2kw
+  KYRR_REF: main
   # The Omarchy the menu has to load on, besides the newest stable tag.
   OMARCHY_OLDEST: v4.0.6
 
