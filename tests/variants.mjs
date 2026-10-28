@@ -107,6 +107,9 @@ export function variants(sample) {
   for (const stamps of [1, 2]) add(`memo sheet stamps ${stamps}`, (k) => { k.memos.sheet.stamps = stamps })
   add("memo rework busy", (k) => { k.memos.sheet.rework.busy = true; k.memos.sheet.rework.progress = 0.3; k.memos.sheet.rework.note = "Moment" })
   add("memo rework original", (k) => { k.memos.sheet.rework.original = true; k.memos.sheet.rework.target = "en" })
+  add("memo compare", (k) => { k.memos.sheet.rework.original = true; k.memos.sheet.view = 1 })
+  add("memo compare while the model works", (k) => { k.memos.sheet.rework.original = true; k.memos.sheet.view = 1; k.memos.sheet.rework.busy = true })
+  add("memo compare, no view field (older kyrr)", (k) => { k.memos.sheet.rework.original = true; delete k.memos.sheet.view })
   add("memo rework not ready", (k) => { k.memos.sheet.rework.ready = false })
   add("memo rework absent (older kyrr)", (k) => { delete k.memos.sheet.rework })
   add("memo with a search", (k) => { k.memos.query = "idee" })
@@ -127,6 +130,7 @@ export function variants(sample) {
   add("ai model not in the list", (k) => { k.ai.model = "anderes:7b" })
   add("ai translates", (k) => { k.ai.translate = "fr"; k.ai.rework = 3 })
   add("ai prompt own, translate", (k) => { k.ai.prompt = { index: 3, own: true } })
+  for (const index of [0, 1, 2]) add(`ai prompt ${index}, own`, (k) => { k.ai.prompt = { index, own: true } })
   add("ai without prompt", (k) => { delete k.ai.prompt })
   add("asr on", (k) => { k.ai.asr.on = true; k.ai.asr.url = "http://192.168.1.10:8000" })
   add("asr on, found, with models", (k) => {

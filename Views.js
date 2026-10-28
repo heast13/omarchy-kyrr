@@ -132,16 +132,22 @@ function ai(k, t) {
   rows = rows.concat(serverRows(a, t, "ai", "http://192.168.1.10:11434"))
   rows.push({ kind: "section", label: t("whichModel") })
   rows.push({ kind: "info", label: t("modelTips") })
-  // The wording itself is read and changed in kyrr's window only; here you
-  // see whether an instruction is your own and can bring kyrr's back.
+  // The instruction the language model gets for each task: read it, change
+  // it and save it, or bring kyrr's own back.
   var p = a.prompt || { index: 0, own: false }
   rows.push({ kind: "separator" })
   rows.push({ kind: "info", label: t("promptsHint") })
   rows.push({ kind: "choice", id: "prompt", label: t("prompts"),
     options: options(t, ["reworkFix", "reworkPolish", "reworkBusiness", "translate"]), value: p.index,
-    caption: t(p.own ? "promptOwn" : "promptDefault"), cmd: "set ai.prompt {}" })
+    cmd: "set ai.prompt {}" })
   if (p.index === 3) rows.push({ kind: "info", label: t("promptTarget", "{target}") })
-  rows.push({ kind: "action", id: "promptReset", icon: GLYPH.update, label: t("reset"), enabled: !!p.own, cmd: "set ai.promptReset" })
+  rows.push({ kind: "editor", id: "promptEditor", channel: "prompt", memo: String(p.index) })
+  // "Not saved yet." / "Saved." follows what is typed (Panel.qml).
+  rows.push({ kind: "info", id: "promptState", live: "promptState", label: t(p.own ? "promptOwn" : "promptDefault") })
+  rows.push({ kind: "buttons", id: "promptTools", buttons: [
+    { id: "promptSave", icon: GLYPH.check, label: t("save"), live: "promptDirty" },
+    { id: "promptReset", icon: GLYPH.update, label: t("reset"), live: "promptOwnOrDirty", cmd: "set ai.promptReset" }
+  ] })
   return { title: t("localAi"), rows: rows }
 }
 
@@ -201,8 +207,24 @@ function dictationHelp(k, t) {
   return rows
 }
 
+// Whether version `a` is newer than `b` (dotted numbers).
+function newer(a, b) {
+  var x = String(a).split("."), y = String(b).split(".")
+  for (var i = 0; i < Math.max(x.length, y.length); i++) {
+    var p = parseInt(x[i], 10) || 0, q = parseInt(y[i], 10) || 0
+    if (p !== q) return p > q
+  }
+  return false
+}
+
+// A new version of this plugin on GitHub (`plugin`: the one installed and the
+// newest, "" until looked), which the menu installs on its own, kyrr as it is.
+function pluginUpdate(plugin) {
+  return !!(plugin && plugin.version && plugin.latest && newer(plugin.latest, plugin.version))
+}
+
 // A new version: install it (or where to get it), what is new, not now.
-function updateRows(k, t, always) {
+function updateRows(k, t, always, plugin) {
   var u = k.update
   var rows = []
   if (u.state === "downloading")
@@ -222,10 +244,15 @@ function updateRows(k, t, always) {
     if (u.news) rows.push({ kind: "action", id: "updateNews", icon: GLYPH.news, label: t("whatsNew"), page: "updateNews" })
     if (!always) rows.push({ kind: "action", id: "updateDismiss", label: t("notNow"), cmd: "update dismiss" })
   }
+  // A new kyrr brings the new menu along; the menu alone has its own row.
+  var withKyrr = rows.some(function(row) { return row.id === "install" })
+  if (pluginUpdate(plugin) && !withKyrr)
+    rows.push({ kind: "action", id: "installPlugin", icon: GLYPH.update, accent: true,
+      label: t("updatePlugin"), caption: t("updatePluginHint", plugin.latest) })
   return rows
 }
 
-function main(k, t) {
+function main(k, t, plugin) {
   var attached = k.filter.attached !== false
   var rows = [
     { kind: "switch", id: "filter", icon: GLYPH.filter, page: "filter", label: t("filter"),
@@ -255,7 +282,7 @@ function main(k, t) {
     rows.push({ kind: "info", label: t(k.overloadNote === "switched" ? "overloadSwitched" : "overloadPauses") })
     rows.push({ kind: "action", id: "overloadSeen", label: t("gotIt"), cmd: "setup overloadSeen" })
   }
-  rows = rows.concat(updateRows(k, t, false))
+  rows = rows.concat(updateRows(k, t, false, plugin))
   rows.push({ kind: "separator" })
   rows.push({ kind: "action", id: "setup", icon: GLYPH.setup, label: t("setup"), page: "setup" })
   return { title: "", rows: rows }
@@ -418,8 +445,9 @@ function recordings(k, t) {
 }
 
 // The language model on a recording's text, as under the text in kyrr's
-// window: rework, translate, apply, and the original back. (The comparison
-// of the two texts is in the window only.) An older kyrr says nothing of it.
+// window: rework, translate, apply, and the original back (the comparison of
+// the two texts is a view of the recording's page). An older kyrr says nothing
+// of it.
 function memoRework(sheet, t) {
   var w = sheet.rework
   var rows = []
@@ -464,17 +492,28 @@ function memoText(k, t, id) {
   // field is never made anew under the cursor.
   var open = sheet && sheet.id === r.id
   if (r.text === "ready" && open) {
-    // The language model at work: the text is not typed into meanwhile.
-    rows.push({ kind: "editor", id: "editor", memo: r.id, locked: !!(sheet.rework && sheet.rework.busy) })
-    rows.push({ kind: "info", label: sheet.empty ? t("nothingUnderstood") : sheet.saved ? t("copyHint") : t("saving") })
-    // A row of buttons each, so the whole page fits without scrolling.
-    rows.push({ kind: "buttons", id: "textTools", buttons: [
-      { id: "copy", icon: GLYPH.copy, label: sheet.copied ? "✓ " + t("copied") : t("copy") },
-      { id: "here", icon: GLYPH.play, label: t("playHere") + (sheet.here ? " " + sheet.here : "") },
-      { id: "opentext", icon: GLYPH.file, label: t("textFile"), cmd: "memo opentext" }
-    ] })
-    rows.push({ kind: "choice", id: "stamps", label: t("times"),
-      options: options(t, ["stampsOff", "stampsPosition", "stampsClock"]), value: sheet.stamps, cmd: "memo stamps {}" })
+    var w = sheet.rework
+    // After a rework the text can be read beside the one before it.
+    var comparing = !!(w && w.original && !w.busy && sheet.view === 1)
+    if (w && w.original && !w.busy)
+      rows.push({ kind: "choice", id: "view", label: t("view"), options: options(t, ["viewText", "viewCompare"]),
+        value: comparing ? 1 : 0, cmd: "memo view {}" })
+    if (comparing) {
+      rows.push({ kind: "compare", id: "compare", memo: r.id })
+      rows.push({ kind: "info", label: t("compareHint") })
+    } else {
+      // The language model at work: the text is not typed into meanwhile.
+      rows.push({ kind: "editor", id: "editor", memo: r.id, locked: !!(w && w.busy) })
+      rows.push({ kind: "info", label: sheet.empty ? t("nothingUnderstood") : sheet.saved ? t("copyHint") : t("saving") })
+      // A row of buttons each, so the whole page fits without scrolling.
+      rows.push({ kind: "buttons", id: "textTools", buttons: [
+        { id: "copy", icon: GLYPH.copy, label: sheet.copied ? "✓ " + t("copied") : t("copy") },
+        { id: "here", icon: GLYPH.play, label: t("playHere") + (sheet.here ? " " + sheet.here : "") },
+        { id: "opentext", icon: GLYPH.file, label: t("textFile"), cmd: "memo opentext" }
+      ] })
+      rows.push({ kind: "choice", id: "stamps", label: t("times"),
+        options: options(t, ["stampsOff", "stampsPosition", "stampsClock"]), value: sheet.stamps, cmd: "memo stamps {}" })
+    }
     rows = rows.concat(memoRework(sheet, t))
   } else if (r.text === "writing" || r.waiting) {
     rows.push({ kind: "progress", label: textNote(r, t), value: r.progress || 0 })
@@ -493,7 +532,7 @@ function memoText(k, t, id) {
   return { title: r.pending ? t("findingTitle") : r.title, rows: rows }
 }
 
-function setup(k, t) {
+function setup(k, t, plugin) {
   var g = k.general
   var effortHint = { best: "bestHint", lean: "leanHint", custom: "effortCustomHint" }
   var u = k.update
@@ -538,7 +577,7 @@ function setup(k, t) {
   rows.push({ kind: "section", label: t("updates") })
   rows.push({ kind: "switch", id: "updateCheck", label: t("updateAuto"), checked: g.updateCheck,
     caption: t(g.updateCheck ? "updateAutoOn" : "updateAutoOff"), cmd: "toggle general.updateCheck" })
-  var updates = updateRows(k, t, true)
+  var updates = updateRows(k, t, true, plugin)
   if (updates.length) rows = rows.concat(updates)
   else
     rows.push({ kind: "action", id: "checkUpdate", icon: GLYPH.update, label: t("checkUpdates"),
@@ -610,20 +649,20 @@ function welcome(k, t) {
   return { title: t(step === 1 ? "welcome" : step === 2 ? "languageModel" : "performance"), rows: rows }
 }
 
-function updateNews(k, t) {
+function updateNews(k, t, plugin) {
   return { title: t("whatsNew"), rows: [
     { kind: "info", label: t("news", k.update.version) },
     { kind: "info", label: k.update.news || "", body: true }
-  ].concat(updateRows(k, t, true).filter(function(row) { return row.id !== "updateNews" })) }
+  ].concat(updateRows(k, t, true, plugin).filter(function(row) { return row.id !== "updateNews" })) }
 }
 
-function build(page, k, t) {
-  var view = page_(page, k, t)
+function build(page, k, t, plugin) {
+  var view = page_(page, k, t, plugin)
   view.rows = view.rows.filter(function(row) { return !row.hidden })
   return view
 }
 
-function page_(page, k, t) {
+function page_(page, k, t, plugin) {
   if (!k.setupDone) return welcome(k, t)
   if (page.indexOf("text:") === 0) return memoText(k, t, page.slice(5))
   switch (page) {
@@ -632,13 +671,13 @@ function page_(page, k, t) {
   case "dictation": return dictation(k, t)
   case "memos": return memos(k, t)
   case "recordings": return recordings(k, t)
-  case "setup": return setup(k, t)
+  case "setup": return setup(k, t, plugin)
   case "mic": return mic(k, t)
   case "about": return about(k, t)
-  case "updateNews": return updateNews(k, t)
-  case "ai": return aiShown(k) && k.ai.asr ? ai(k, t) : main(k, t)
-  case "asr": return k.ai && k.ai.asr ? asr(k, t) : main(k, t)
-  default: return main(k, t)
+  case "updateNews": return updateNews(k, t, plugin)
+  case "ai": return aiShown(k) ? ai(k, t) : main(k, t, plugin)
+  case "asr": return k.ai && k.ai.asr ? asr(k, t) : main(k, t, plugin)
+  default: return main(k, t, plugin)
   }
 }
 

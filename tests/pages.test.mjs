@@ -21,7 +21,7 @@ const rowKinds = new Set([...drawn, ...(selectableList ? selectableList[1].repla
 // What a button of a row of buttons does without a `cmd`, by its id.
 const buttonIds = new Set([...panelQml.matchAll(/\bb\.id === "(\w+)"/g)].map((m) => m[1]))
 // The one action Panel.qml handles itself.
-const ownActions = new Set([...panelQml.matchAll(/\brow\.id === "(\w+)"\) \{/g)].map((m) => m[1]))
+const ownActions = new Set([...panelQml.matchAll(/\brow\.id === "(\w+)"(?:\) \{| \|\|)/g)].map((m) => m[1]))
 
 // ------------------------------------------------------- what Views.js knows
 
@@ -178,7 +178,7 @@ test("pages: Views.js knows the pages the test expects", () => {
     assert.ok(pageNames.includes(page), `page ${page} not found in Views.page_`)
   assert.ok(rowKinds.size >= 13, `row kinds read from Panel.qml: ${[...rowKinds]}`)
   assert.ok(buttonIds.has("deleteMemo") && buttonIds.has("copy"), `button ids read from Panel.qml: ${[...buttonIds]}`)
-  assert.ok(ownActions.has("install"), "Panel.qml's own action not found")
+  assert.ok(ownActions.has("install") && ownActions.has("installPlugin"), "Panel.qml's own actions not found")
 })
 
 // ------------------------------------------------------- Panel.qml's own lines

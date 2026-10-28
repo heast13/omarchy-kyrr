@@ -34,7 +34,10 @@ var de = {
   installHint: "Lädt kyrr von GitHub (etwa 50 MB), prüft es und richtet es ein.",
   updateKyrr: "kyrr aktualisieren",
   updateKyrrHint: "Dieses kyrr ist zu alt für das Menü. Lädt die neueste Version von GitHub.",
-  pluginOld: "kyrr ist neuer als dieses Plugin. Aktualisieren: omarchy plugin update io.github.heast13.kyrr",
+  pluginOld: "kyrr ist neuer als dieses Plugin.",
+  pluginOldHint: "Ein Klick oder Enter: Ein Fenster lädt das neue Plugin und die Leiste startet neu. kyrr und deine Einstellungen bleiben.",
+  updatePlugin: "Plugin aktualisieren",
+  updatePluginHint: "Version {} des Plugins ist da. Ein Klick oder Enter: Ein Fenster lädt es und die Leiste startet neu. kyrr und deine Einstellungen bleiben.",
 
   filterStrength: "Filterstärke",
   gentle: "Sanft",
@@ -297,7 +300,16 @@ var de = {
   asrBuiltIn: "Die Erkennung läuft auf diesem PC. Keine Daten verlassen ihn.",
   asrOwn: "Ein Sprachserver wie speaches oder whisper.cpp erkennt das Diktat. Live-Wörter werden dann nicht angezeigt. Ist der Server nicht erreichbar, erkennt kyrr auf diesem PC, sofern das Sprachmodell installiert ist.",
   apply: "Anwenden",
-  restoreOriginal: "Original wiederherstellen"
+  restoreOriginal: "Original wiederherstellen",
+  save: "Speichern",
+  promptNotSaved: "Noch nicht gespeichert.",
+  view: "Ansicht",
+  viewText: "Text",
+  viewCompare: "Vergleich",
+  compareOriginal: "Original",
+  compareNew: "Neue Fassung",
+  compareHint: "Rot: im Original geändert. Grün: neu formuliert. Eine Übersetzung bleibt unmarkiert.",
+  compareLoading: "Der Vergleich wird geladen …"
 }
 
 var en = {
@@ -332,7 +344,10 @@ var en = {
   installHint: "Downloads kyrr from GitHub (about 50 MB), checks it and sets it up.",
   updateKyrr: "Update kyrr",
   updateKyrrHint: "This kyrr is too old for the menu. Downloads the newest version from GitHub.",
-  pluginOld: "kyrr is newer than this plugin. To update: omarchy plugin update io.github.heast13.kyrr",
+  pluginOld: "kyrr is newer than this plugin.",
+  pluginOldHint: "One click or Enter: a window downloads the new plugin and the bar restarts. kyrr and your settings stay.",
+  updatePlugin: "Update plugin",
+  updatePluginHint: "Version {} of the plugin is out. One click or Enter: a window downloads it and the bar restarts. kyrr and your settings stay.",
 
   filterStrength: "Filter strength",
   gentle: "Gentle",
@@ -595,7 +610,16 @@ var en = {
   asrBuiltIn: "kyrr recognises on this computer. Nothing leaves it.",
   asrOwn: "A speech server such as speaches or whisper.cpp recognises your dictation. Live words are not shown then. If the server cannot be reached, kyrr recognises on this computer, provided the speech model is installed.",
   apply: "Apply",
-  restoreOriginal: "Restore original"
+  restoreOriginal: "Restore original",
+  save: "Save",
+  promptNotSaved: "Not saved yet.",
+  view: "View",
+  viewText: "Text",
+  viewCompare: "Compare",
+  compareOriginal: "Original",
+  compareNew: "New version",
+  compareHint: "Red: changed in the original. Green: worded anew. A translation stays unmarked.",
+  compareLoading: "Loading the comparison …"
 }
 
 function text(german, key, value) {

@@ -26,9 +26,12 @@ More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13
   adds a Local AI row to the menu. Its page sets your language model
   (address, model, key, a test), what it does to each dictation (fix
   mishearings, reword, professional) and the language it translates into.
-  The same rework and translation work on a recording's text, with
-  "Restore original". Setup > Own dictation model sends dictation to a
-  speech server of your own.
+  The instruction the model gets for each task can be read there, changed
+  and saved, or set back to kyrr's. The same rework and translation work on a
+  recording's text, with "Restore original"; once reworked, the recording's
+  page can show the text beside the one before (View: Text | Compare; red is
+  what changed, green what is worded anew). Setup > Own dictation model
+  sends dictation to a speech server of your own.
 - **Middle click:** start or stop dictating.
 - **Not installed yet?** The menu offers "Install kyrr". It downloads the
   newest kyrr and its checksum from GitHub in a terminal, so you see every
@@ -38,6 +41,11 @@ More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13
   (`omarchy plugin update`) and reloads the bar (`omarchy-restart-shell`) in
   the same terminal window. An older kyrr gets an "Update kyrr" row the same
   way. (From plugin 1.2.0 on; before that, update the plugin by hand once.)
+- **A new plugin on its own.** When kyrr's "check for updates automatically"
+  is on, the menu asks GitHub (the plugin's `manifest.json`, at most every six
+  hours) whether this plugin has a newer version, and Setup > Check for
+  updates asks right away. If so, the menu offers "Update plugin": one click
+  loads it, reloads the bar and leaves kyrr as it is. (From plugin 1.4.0 on.)
 
 On Omarchy with this widget kyrr has no window and no tray icon. The widget
 starts kyrr; to switch kyrr off, disable the plugin in Omarchy's menu
@@ -64,7 +72,9 @@ the bar.
 
 ## What kyrr changes on your system
 
-The widget writes nothing but `$XDG_RUNTIME_DIR/kyrr-widget`. kyrr, once
+The widget writes nothing but `$XDG_RUNTIME_DIR/kyrr-widget` and, for what
+you type into a text, files beside kyrr's state (see "State"). Its only
+network call is the look at its own version on GitHub (see above). kyrr, once
 installed, adds:
 
 - `~/.local/bin/kyrr`, and on Omarchy 4.5 and newer the scripts
@@ -170,10 +180,20 @@ this version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
   kyrr's), and `asr`: the speech server, with `on` and the same `url`,
   `model`, `models`, `keySet`, `busy`, `note`, `found`
 
-The text of the recording in `sheet` is in `$XDG_RUNTIME_DIR/kyrr/sheet`,
-as kyrr's text view shows it (with the chosen stamps). What the menu types
-into it goes to `$XDG_RUNTIME_DIR/kyrr/edit`; kyrr takes that file with
-`memo edit` and before `memo copy|here|stamps|opentext`.
+Longer texts do not travel in the state but in files beside it, in
+`$XDG_RUNTIME_DIR/kyrr/`. The first line of each names the recording (its
+file name) or task (0 to 3) it belongs to, so a text never lands on another
+one.
+
+- `sheet`: the text of the recording in `sheet`, as kyrr's text view shows it
+  (with the chosen stamps). What the menu types into it goes to `edit`; kyrr
+  takes that file with `memo edit` and before `memo copy|here|stamps|opentext`.
+- `compare`: while `sheet.view` is 1 (`memo view 1`), the text before and
+  after the language model: a JSON list of `{before, after}`, one entry per
+  paragraph, in rich text (`<font color>` marks what changed).
+- `prompt`: the instruction the language model gets for the task in
+  `ai.prompt.index`. What the menu wants it to say goes to `promptedit`; kyrr
+  takes that file with `set ai.promptSave`.
 
 ### Commands
 
@@ -185,16 +205,17 @@ into it goes to `$XDG_RUNTIME_DIR/kyrr/edit`; kyrr takes that file with
   `set dictation.hold|memos.hold true|false`,
   `set general.language de|en|multi`, `set general.effort lean|best`
 - Local AI: `set ai.rework <0-3>`, `set ai.translate <code>|off`,
-  `set ai.prompt <0-3>`, `set ai.promptReset` (the shown instruction back
-  to kyrr's), and for the language model `set ai.url|ai.model|ai.key <text>`
+  `set ai.prompt <0-3>`, `set ai.promptSave` (takes the wording in the file
+  `promptedit`), `set ai.promptReset` (the shown instruction back to
+  kyrr's), and for the language model `set ai.url|ai.model|ai.key <text>`
   (address and key are saved and tried at once), `set ai.connect` (connect
   and test), `set ai.take` (use the server found on this computer),
   `set ai.look language|speech` (look for one). The speech server has
   `set asr.on true|false`, `set asr.url|asr.model|asr.key <text>`,
   `set asr.connect` and `set asr.take`. On the open recording:
   `set memos.reworkAction <0-3>`, `set memos.reworkTarget <code>|off`, then
-  `memo rework` (apply), `memo stoprework` and `memo restore` (the original
-  back). The key goes through the socket like any other line, never through
+  `memo rework` (apply), `memo stoprework`, `memo restore` (the original
+  back) and `memo view 0|1` (the text, or the text beside the one before). The key goes through the socket like any other line, never through
   an argument.
 - `mic <id>` (first-run setup: picks it; else: moves the filter to it),
   `mic unmute|repair|default`
@@ -208,15 +229,6 @@ into it goes to `$XDG_RUNTIME_DIR/kyrr/edit`; kyrr takes that file with
   `open feedback|licenses`
 - Also: `dictate`, `menu-open` (every few seconds while the menu is open:
   kyrr keeps its status line, notes and meters going), `menu-closed`
-
-## Known gaps
-
-What kyrr's window does with Local AI and the menu does not (yet):
-
-- The comparison of a recording's text with the one before its rework
-  (Text | Compare). The menu applies a rework and brings the original back.
-- Reading and changing the wording of the instructions. The menu shows
-  whether one is your own and sets it back to kyrr's.
 
 ## Development
 
