@@ -99,7 +99,6 @@ start_sway() {
   export SWAYSOCK
   [ "$(swaymsg -t get_outputs | jq length)" -gt 0 ] || swaymsg create_output >/dev/null
   swaymsg "output * resolution $1 position 0 0" >/dev/null
-  swaymsg "output * bg #1a1b26 solid_color" >/dev/null
   sleep 1
   log "outputs: $(swaymsg -t get_outputs | jq -c '[.[] | {name, w: .current_mode.width, h: .current_mode.height}]')"
 }
@@ -122,7 +121,13 @@ start_qs() {
     if metrics | jq -e '.loaded' >/dev/null 2>&1; then ready=1; break; fi
     sleep 0.5
   done
-  [ -n "$ready" ] || { log "the widget never loaded"; tail -n 40 "$out/qs.log"; return 1; }
+  if [ -z "$ready" ]; then
+    log "the widget never loaded"
+    qs ipc show >&2 || true
+    qs ipc call kyrrtest metrics >&2 || true
+    quickshell list --all >&2 || true
+    return 1
+  fi
 }
 
 stop_qs() {
