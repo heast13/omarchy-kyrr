@@ -106,6 +106,15 @@ jobs:
         run: git clone --depth 1 --branch "${{ matrix.tag }}" https://github.com/basecamp/omarchy "$RUNNER_TEMP/omarchy"
       - name: Load the menu
         run: bash tests/load/run.sh "$RUNNER_TEMP/omarchy" 1366x768,1920x1080,2560x1440 load-out
+      - name: The test can fail
+        # A plugin with a deliberate QML error must fail the load test, and the
+        # log check must name the error.
+        run: |
+          if KYRR_BREAK=1 KYRR_LOAD_QUICK=1 bash tests/load/run.sh "$RUNNER_TEMP/omarchy" 1920x1080 selftest-out > selftest.log 2>&1; then
+            echo "a plugin with a QML error passed the load test"
+            exit 1
+          fi
+          grep -F "ReferenceError" selftest-out/summary.md
       - name: What the run saw
         if: always()
         run: |

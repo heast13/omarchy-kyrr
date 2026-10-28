@@ -21,7 +21,7 @@ const plan = {
   "dictation key unbound with a button": ["main", "dictation"],
   "dictation, model downloading": ["main", "dictation"],
   "memos empty list": ["main", "memos", "recordings"],
-  "many memos": ["recordings"],
+  "six memos": ["recordings"],
   "memo rework original": ["text"],
   "memo not ready, cannot write": ["text"],
   "ai missing (kyrr 0.7)": ["main", "setup"],
@@ -32,6 +32,10 @@ const plan = {
   "overload note switched": ["main"],
   "alert 4": ["main"]
 }
+
+// KYRR_LOAD_QUICK=1: one page, for checking that the test can fail.
+if (process.env.KYRR_LOAD_QUICK) for (const name of Object.keys(plan)) if (name !== "sample as it is") delete plan[name]
+if (process.env.KYRR_LOAD_QUICK) plan["sample as it is"] = ["main"]
 
 const lines = []
 let n = 0

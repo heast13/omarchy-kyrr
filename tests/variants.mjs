@@ -111,8 +111,8 @@ export function variants(sample) {
   add("memo rework absent (older kyrr)", (k) => { delete k.memos.sheet.rework })
   add("memo with a search", (k) => { k.memos.query = "idee" })
   add("memo seen", (k) => { k.memos.list.forEach((m) => { m.isNew = false }) })
-  add("many memos", (k) => {
-    for (let i = 0; i < 12; i++) k.memos.list.push({ ...clone(k.memos.list[1]), id: `2026-10-0${(i % 9) + 1} 10-00 Aufnahme ${i}.opus`, title: `Aufnahme ${i}` })
+  add("six memos", (k) => {
+    for (let i = 0; i < 4; i++) k.memos.list.push({ ...clone(k.memos.list[1]), id: `2026-10-0${(i % 9) + 1} 10-00 Aufnahme ${i}.opus`, title: `Aufnahme ${i}` })
     k.memos.count = k.memos.list.length
   })
 

@@ -10,6 +10,7 @@ set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 plugin=$(cd "$here/../.." && pwd)
+real_plugin=$plugin
 omarchy=$(cd "$1" && pwd)
 sizes=$2
 out=$(mkdir -p "$3" && cd "$3" && pwd)
@@ -40,6 +41,16 @@ cleanup() {
 trap cleanup EXIT
 
 log() { echo "[load] $*" >&2; }
+# KYRR_BREAK=1 loads a copy of the plugin with a deliberate QML error, to show
+# that this test can fail: the judge has to name the error.
+if [ -n "${KYRR_BREAK:-}" ]; then
+  plugin=$work/plugin
+  mkdir -p "$plugin"
+  cp "$real_plugin"/*.qml "$real_plugin"/*.js "$real_plugin"/update.sh "$plugin/"
+  sed -i '$ d' "$plugin/Panel.qml"
+  printf '  Rectangle { color: notDefinedAnywhere }\n}\n' >>"$plugin/Panel.qml"
+fi
+
 for name in metrics.jsonl qs.log commands.log run.log; do : >"$out/$name"; done
 
 # ---- Omarchy's side: Commons and Ui next to the test shell, a theme, the font.
@@ -210,6 +221,8 @@ run_size() {
   [ -n "$first" ] && phase_without_kyrr "$size"
   start_kyrr
   start_qs
+  # The bar alone, to tell later that a menu was drawn.
+  grim "$out/$size/baseline.png"
   while IFS=$'\t' read -r file pid variant pages; do
     log "$size · $variant"
     ipc io.github.heast13.kyrr open >/dev/null
@@ -222,9 +235,10 @@ run_size() {
       ipc kyrrtest page "$page" >/dev/null
       sleep 0.6
       m=$(metrics)
-      jq -cn --arg size "$size" --arg variant "$variant" --arg page "$page" --argjson pid "$pid" --argjson m "$m" \
-        '{size: $size, variant: $variant, page: $page, pid: $pid, metrics: $m}' >>"$out/metrics.jsonl"
       shot=$out/$size/$(slug "$variant")--$(slug "$page").png
+      jq -cn --arg size "$size" --arg variant "$variant" --arg page "$page" --argjson pid "$pid" --argjson m "$m" \
+        --arg shot "${shot#"$out"/}" --argjson full "$([ "$crop" = 0 ] && echo true || echo false)" \
+        '{size: $size, variant: $variant, page: $page, pid: $pid, shot: $shot, full: $full, metrics: $m}' >>"$out/metrics.jsonl"
       geometry=""
       if [ "$crop" = 1 ]; then
         # The card with a margin, kept on the screen.

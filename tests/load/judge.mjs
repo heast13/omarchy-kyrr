@@ -1,6 +1,6 @@
 // Reads what the load job collected and says whether the menu passed.
 // Usage: node judge.mjs <folder>   (metrics.jsonl, qs.log, commands.log, run.log)
-import { readFileSync, existsSync, appendFileSync, writeFileSync } from "node:fs"
+import { readFileSync, existsSync, appendFileSync, writeFileSync, statSync } from "node:fs"
 import path from "node:path"
 import { loadContract, matchCommand, root } from "../helpers.mjs"
 
@@ -28,6 +28,14 @@ for (const r of records) {
   if (m.page !== r.page) fail(`${where}: the menu is on page "${m.page}"`)
   if (!(m.rows > 0)) fail(`${where}: no rows`)
   if (m.pid !== r.pid) fail(`${where}: the menu shows another state than the one written (pid ${m.pid}, wanted ${r.pid})`)
+  // A screenshot was taken, and a full one shows more than the bar alone.
+  const shot = r.shot && path.join(folder, r.shot)
+  if (!shot || !existsSync(shot) || statSync(shot).size < 2000) fail(`${where}: no screenshot`)
+  else if (r.full) {
+    const baseline = path.join(folder, r.size, "baseline.png")
+    if (existsSync(baseline) && statSync(shot).size < statSync(baseline).size * 1.1)
+      fail(`${where}: the screenshot looks like the bar alone (${statSync(shot).size} bytes, bar ${statSync(baseline).size})`)
+  }
   const p = m.panel
   if (!p || !p.visible || !(p.contentWidth > 0) || !(p.contentHeight > 0)) { fail(`${where}: the menu card did not appear`); continue }
   const [w, h] = r.size.split("x").map(Number)
