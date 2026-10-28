@@ -129,6 +129,8 @@ export function variants(sample) {
   add("ai without models", (k) => { k.ai.models = []; k.ai.model = "" })
   add("ai model not in the list", (k) => { k.ai.model = "anderes:7b" })
   add("ai translates", (k) => { k.ai.translate = "fr"; k.ai.rework = 3 })
+  add("fix order on", (k) => { k.ai.rework = 1; k.ai.fixOrder = true })
+  add("old kyrr without fixOrder", (k) => { delete k.ai.fixOrder })
   add("ai prompt own, translate", (k) => { k.ai.prompt = { index: 3, own: true } })
   for (const index of [0, 1, 2]) add(`ai prompt ${index}, own`, (k) => { k.ai.prompt = { index, own: true } })
   add("ai prompt of a kyrr that cannot edit it", (k) => { k.ai.prompt = { index: 1, own: true } })

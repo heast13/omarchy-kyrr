@@ -103,7 +103,7 @@ test("a newer plugin on GitHub gets its own row, with kyrr as it is", () => {
 })
 
 test("no row while the plugin is current, unknown or not looked at", () => {
-  for (const plugin of [undefined, { version: "1.3.0", latest: "1.3.0" }, { version: "1.3.0", latest: "" }, { version: "", latest: "1.3.0" }, { version: "1.4.0", latest: "1.3.0" }])
+  for (const plugin of [undefined, { version: "1.3.0", latest: "1.3.0" }, { version: "1.3.0", latest: "" }, { version: "", latest: "1.3.0" }, { version: "1.5.0", latest: "1.3.0" }])
     assert.equal(byId(mainRows(noUpdate, plugin), "installPlugin"), undefined, JSON.stringify(plugin))
 })
 
