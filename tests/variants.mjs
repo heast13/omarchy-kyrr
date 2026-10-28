@@ -131,6 +131,7 @@ export function variants(sample) {
   add("ai translates", (k) => { k.ai.translate = "fr"; k.ai.rework = 3 })
   add("ai prompt own, translate", (k) => { k.ai.prompt = { index: 3, own: true } })
   for (const index of [0, 1, 2]) add(`ai prompt ${index}, own`, (k) => { k.ai.prompt = { index, own: true } })
+  add("ai prompt of a kyrr that cannot edit it", (k) => { k.ai.prompt = { index: 1, own: true } })
   add("ai without prompt", (k) => { delete k.ai.prompt })
   add("asr on", (k) => { k.ai.asr.on = true; k.ai.asr.url = "http://192.168.1.10:8000" })
   add("asr on, found, with models", (k) => {

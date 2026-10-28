@@ -141,13 +141,20 @@ function ai(k, t) {
     options: options(t, ["reworkFix", "reworkPolish", "reworkBusiness", "translate"]), value: p.index,
     cmd: "set ai.prompt {}" })
   if (p.index === 3) rows.push({ kind: "info", label: t("promptTarget", "{target}") })
-  rows.push({ kind: "editor", id: "promptEditor", channel: "prompt", memo: String(p.index) })
-  // "Not saved yet." / "Saved." follows what is typed (Panel.qml).
-  rows.push({ kind: "info", id: "promptState", live: "promptState", label: t(p.own ? "promptOwn" : "promptDefault") })
-  rows.push({ kind: "buttons", id: "promptTools", buttons: [
-    { id: "promptSave", icon: GLYPH.check, label: t("save"), live: "promptDirty" },
-    { id: "promptReset", icon: GLYPH.update, label: t("reset"), live: "promptOwnOrDirty", cmd: "set ai.promptReset" }
-  ] })
+  if (p.edit) {
+    rows.push({ kind: "editor", id: "promptEditor", channel: "prompt", memo: String(p.index) })
+    // "Not saved yet." follows what is typed (Panel.qml).
+    rows.push({ kind: "info", id: "promptState", live: "promptState", label: t(p.own ? "promptOwn" : "promptDefault") })
+    rows.push({ kind: "buttons", id: "promptTools", buttons: [
+      { id: "promptSave", icon: GLYPH.check, label: t("save"), live: "promptDirty" },
+      { id: "promptReset", icon: GLYPH.update, label: t("reset"), live: "promptOwnOrDirty", cmd: "set ai.promptReset" }
+    ] })
+  } else {
+    // A kyrr that does not hand over the wording (0.8.0): whether the
+    // instruction is your own, and kyrr's back.
+    rows.push({ kind: "info", label: t(p.own ? "promptOwn" : "promptDefault") })
+    rows.push({ kind: "action", id: "promptReset", icon: GLYPH.update, label: t("reset"), enabled: !!p.own, cmd: "set ai.promptReset" })
+  }
   return { title: t("localAi"), rows: rows }
 }
 
@@ -494,8 +501,10 @@ function memoText(k, t, id) {
   if (r.text === "ready" && open) {
     var w = sheet.rework
     // After a rework the text can be read beside the one before it.
-    var comparing = !!(w && w.original && !w.busy && sheet.view === 1)
-    if (w && w.original && !w.busy)
+    // (A kyrr without `view`, 0.8.0, cannot compare in the menu.)
+    var canCompare = !!(w && w.original && !w.busy && typeof sheet.view === "number")
+    var comparing = canCompare && sheet.view === 1
+    if (canCompare)
       rows.push({ kind: "choice", id: "view", label: t("view"), options: options(t, ["viewText", "viewCompare"]),
         value: comparing ? 1 : 0, cmd: "memo view {}" })
     if (comparing) {

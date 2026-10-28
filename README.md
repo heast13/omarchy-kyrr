@@ -150,7 +150,8 @@ this version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
   `none`/`writing`/`ready`/`failed`, `waiting`, `progress`, `left`, `isNew`,
   `playing`), `sheet` (null, or the recording opened with `memo show <id>`:
   `id`, `title`, `when`, `stamps` (0 off, 1 position, 2 time of day),
-  `saved`, `copied`, `empty`, `here` (where "Play from here" starts),
+  `view` (0 the text, 1 the text beside the one before the rework; absent in
+  kyrr 0.8.0), `saved`, `copied`, `empty`, `here` (where "Play from here" starts),
   `rework`: the language model on this text, `ready` (Local AI is set
   up), `busy`, `progress` (0 to 1), `note`, `action` (0 off, 1 fix, 2
   reword, 3 professional), `target` (language code, `""` for none),
@@ -177,7 +178,8 @@ this version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
   `busy` (asking the server), `note` (how the last test went), `found` (name
   of a server found on this computer, `""` for none), `prompt` (`index` 0 to 3:
   fix, reword, professional, translate; `own`: that instruction is yours, not
-  kyrr's), and `asr`: the speech server, with `on` and the same `url`,
+  kyrr's; `edit`: the wording can be read and changed through the files below,
+  absent in kyrr 0.8.0), and `asr`: the speech server, with `on` and the same `url`,
   `model`, `models`, `keySet`, `busy`, `note`, `found`
 
 Longer texts do not travel in the state but in files beside it, in

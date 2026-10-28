@@ -56,7 +56,7 @@ test("without an original there is no comparison to switch to", () => {
 test("Local AI's page edits the instruction of each task", () => {
   for (const index of [0, 1, 2, 3]) {
     const k = clone(contract.state)
-    k.ai.prompt = { index, own: index % 2 === 1 }
+    k.ai.prompt = { index, own: index % 2 === 1, edit: true }
     const rows = Views.build("ai", k, t).rows
     const editor = byId(rows, "promptEditor")
     assert.equal(editor.kind, "editor")
@@ -118,4 +118,16 @@ test("Panel.qml runs update.sh with the mode the row asks for", () => {
   assert.match(panelQml, /raw\.githubusercontent\.com\/heast13\/omarchy-kyrr\/main\/manifest\.json/)
   // The look at GitHub follows kyrr's own switch for automatic update checks.
   assert.match(panelQml, /!root\.kyrr\.general\.updateCheck/)
+})
+
+test("a kyrr that hands over neither the wording nor the comparison gets the old rows", () => {
+  const k = clone(contract.state)
+  k.ai.prompt = { index: 1, own: true }
+  const rows = Views.build("ai", k, t).rows
+  assert.equal(byId(rows, "promptEditor"), undefined)
+  assert.equal(byId(rows, "promptTools"), undefined)
+  assert.equal(byId(rows, "promptReset").cmd, "set ai.promptReset")
+  const sheet = recording((k) => { k.memos.sheet.rework.original = true; delete k.memos.sheet.view })
+  assert.equal(byId(sheet, "view"), undefined)
+  assert.ok(kinds(sheet).includes("editor"))
 })
