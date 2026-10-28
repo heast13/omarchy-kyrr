@@ -97,7 +97,10 @@ jobs:
         run: |
           pacman --noconfirm --disable-sandbox -Syu
           pacman --noconfirm --disable-sandbox -S --needed git nodejs jq socat grim sway quickshell \
-            qt6-wayland qt6-svg qt6-5compat fontconfig ttf-jetbrains-mono-nerd
+            qt6-wayland qt6-svg qt6-5compat fontconfig libcap ttf-jetbrains-mono-nerd
+          # sway ships with file capabilities that a container cannot grant,
+          # which makes it fail to start at all.
+          setcap -r /usr/bin/sway
       - uses: actions/checkout@v7
       - name: Omarchy ${{ matrix.tag }}
         run: git clone --depth 1 --branch "${{ matrix.tag }}" https://github.com/basecamp/omarchy "$RUNNER_TEMP/omarchy"
