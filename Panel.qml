@@ -66,18 +66,26 @@ Panel {
   property var stack: ["main"]
   property var cursors: ({})
   readonly property string page: stack[stack.length - 1]
+  // This plugin's own version (its manifest.json) and the newest on GitHub
+  // ("" until looked), for a menu that is updated on its own.
+  property string pluginVersion: ""
+  property string pluginLatest: ""
+  property real pluginLookedAt: 0
+  readonly property var pluginInfo: ({ version: pluginVersion, latest: pluginLatest })
+  readonly property var pluginRow: ({ kind: "action", id: "installPlugin", icon: Views.GLYPH.update, accent: true,
+    label: t("updatePlugin"), caption: t("pluginOldHint") })
   readonly property var updateRow: ({ kind: "action", id: "install", icon: Views.GLYPH.update, label: t("updateKyrr"), caption: t("updateKyrrHint") })
   readonly property var view: {
     if (running) {
       try {
-        return Views.build(page, kyrr, t)
+        return Views.build(page, kyrr, t, root.pluginInfo)
       } catch (e) {
         // A field this plugin wants is missing: kyrr is older than it.
         console.warn("kyrr: " + e)
         return { title: "", rows: [updateRow] }
       }
     }
-    if (pluginOld) return { title: "", rows: [{ kind: "info", label: t("pluginOld") }] }
+    if (pluginOld) return { title: "", rows: [{ kind: "info", label: t("pluginOld") }, root.pluginRow] }
     if (mismatch) return { title: "", rows: [updateRow] }
     return { title: "", rows: [installed
       ? { kind: "info", label: t("starting") }
@@ -99,6 +107,25 @@ Panel {
   property string sheetText: ""
   property string sheetId: ""
   property var editorItem: null
+  // The instruction of the task on Local AI's page, as kyrr has it, with the
+  // task's number; what was typed and not saved yet, by task; and the
+  // comparison of the open recording's text, from kyrr's file.
+  property string promptId: ""
+  property string promptText: ""
+  property var promptDrafts: ({})
+  property string compareId: ""
+  property var compareData: []
+  // The compare view's flickable, which the arrow keys scroll while the
+  // cursor is on it.
+  property var compareItem: null
+  readonly property bool comparing: {
+    for (var i = 0; i < root.rows.length; i++) if (root.rows[i].kind === "compare") return true
+    return false
+  }
+  readonly property bool promptDirty: root.editorItem !== null && root.editorItem.channel === "prompt"
+    && root.editorItem.shown === root.editorItem.memo && root.editorItem.shown === root.promptId
+    && root.editorItem.text !== root.promptText
+  readonly property bool promptOwn: !!(running && kyrr.ai && kyrr.ai.prompt && kyrr.ai.prompt.own)
 
   function t(key, value) {
     return Texts.text(root.german, key, value)
@@ -131,6 +158,7 @@ Panel {
   }
 
   function command(row, value) {
+    if (row.id === "checkUpdate") root.lookForPlugin(true)
     if (!row.cmd) return
     // A function, so a "$" in the value is no pattern of replace().
     root.send(value === undefined ? row.cmd : row.cmd.replace("{}", function() { return String(value) }))
@@ -143,6 +171,24 @@ Panel {
   // shows. The steps are update.sh next to this file: a first install needs
   // kyrr only, an update brings this menu along and restarts the shell.
   readonly property string updateScript: decodeURIComponent(Qt.resolvedUrl("update.sh").toString().replace(/^file:\/\//, ""))
+
+  // update.sh in Omarchy's floating terminal: "install" kyrr, "update" it and
+  // this plugin, or only the "plugin".
+  function runUpdate(mode) {
+    if (root.bar) root.bar.run("omarchy-launch-floating-terminal-with-presentation "
+      + Util.shellQuote("bash " + Util.shellQuote(root.updateScript) + " " + mode))
+    root.close()
+  }
+
+  // Whether GitHub has a newer version of this plugin. Only when asked or
+  // when kyrr's own automatic check is on, and at most every six hours.
+  function lookForPlugin(force) {
+    if (pluginLook.running || root.pluginVersion === "") return
+    var now = Date.now()
+    if (!force && (!root.running || !root.kyrr.general.updateCheck || now - root.pluginLookedAt < 6 * 3600 * 1000)) return
+    root.pluginLookedAt = now
+    pluginLook.running = true
+  }
 
   function startKyrr() {
     if (!root.bar || root.running || !root.installed) return
@@ -184,6 +230,39 @@ Panel {
     return row.enabled !== false
   }
 
+  // Buttons whose state follows what is typed, not only kyrr's state.
+  function liveFlag(flag) {
+    if (flag === "promptDirty") return root.promptDirty
+    if (flag === "promptOwnOrDirty") return root.promptDirty || root.promptOwn
+    return true
+  }
+
+  function buttonOff(b) {
+    return b.live ? !root.liveFlag(b.live) : b.enabled === false
+  }
+
+  function promptState() {
+    return root.t(root.promptDirty ? "promptNotSaved" : root.promptOwn ? "promptOwn" : "promptDefault")
+  }
+
+  // The typed instruction goes to kyrr through a file (it has lines), then
+  // kyrr is told to take it.
+  function savePrompt() {
+    var e = root.editorItem
+    if (!e || e.channel !== "prompt" || promptEditFile.path === "" || e.shown !== e.memo || !root.promptDirty) return
+    promptEditFile.setText(e.memo + "\n" + e.text)
+    delete root.promptDrafts[e.memo]
+    root.send("set ai.promptSave")
+  }
+
+  // Back to kyrr's: what was typed goes, and the text with it.
+  function resetPrompt() {
+    var e = root.editorItem
+    if (!e || e.channel !== "prompt") return
+    delete root.promptDrafts[e.memo]
+    e.put(e.base)
+  }
+
   // ------------------------------------------------------------ keyboard
 
   function moveCursor(dy) {
@@ -192,6 +271,8 @@ Panel {
       if (root.cursor < 0) root.cursor = root.firstSelectable()
       return
     }
+    var here = root.rows[root.cursor]
+    if (here && here.kind === "compare" && root.compareItem && root.compareItem.scrollBy(dy)) return
     var i = root.cursor
     do { i += dy } while (i >= 0 && i < root.rows.length && !Views.selectable(root.rows[i]))
     if (i >= 0 && i < root.rows.length) root.cursor = i
@@ -227,10 +308,8 @@ Panel {
     var row = root.rows[index]
     if (!row || !Views.selectable(row)) return
     root.cursor = index
-    if (row.id === "install") {
-      if (root.bar) root.bar.run("omarchy-launch-floating-terminal-with-presentation "
-        + Util.shellQuote("bash " + Util.shellQuote(root.updateScript) + (root.installed ? " update" : " install")))
-      root.close()
+    if (row.id === "install" || row.id === "installPlugin") {
+      root.runUpdate(row.id === "installPlugin" ? "plugin" : root.installed ? "update" : "install")
       return
     }
     if (!root.enabled(row)) return
@@ -272,7 +351,9 @@ Panel {
     root.pick = at
     if (b.id === "deleteMemo") return root.remove()
     root.deleting = ""
-    if (b.enabled === false) return
+    if (root.buttonOff(b)) return
+    if (b.id === "promptSave") return root.savePrompt()
+    if (b.id === "promptReset") root.resetPrompt()
     if (b.id === "copy") return root.copySheet()
     if (b.id === "here") return root.playHere()
     // What was typed into the text goes first, so the language model and
@@ -402,6 +483,7 @@ Panel {
     root.sheetId = ""
     root.sheetText = ""
     if (root.page.indexOf("text:") === 0) Qt.callLater(sheetFile.reload)
+    if (root.page === "ai") Qt.callLater(promptFile.reload)
     if (!root.running) return
     root.send(root.page.indexOf("text:") === 0 ? "memo show " + root.page.slice(5) : "memo show")
     if (root.page === "recordings") root.send("memo seen")
@@ -426,6 +508,7 @@ Panel {
     root.cursorActive = false
     root.cursor = root.firstSelectable()
     stateFile.reload()
+    root.lookForPlugin(false)
     aliveProbe.running = true
     if (!root.running) lookForKyrr.running = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -463,6 +546,8 @@ Panel {
       // kyrr writes a recording's text before the state that names it; a
       // watch does not see a file that was not there yet.
       if (root.page.indexOf("text:") === 0) sheetFile.reload()
+      if (root.page === "ai") promptFile.reload()
+      if (root.comparing) compareFile.reload()
       if (!root.alive) aliveProbe.running = true
     }
     onLoadFailed: {
@@ -502,6 +587,53 @@ Panel {
     onFileChanged: reload()
   }
 
+  // The instruction of the task Local AI's page shows: the first line is the
+  // task's number, the rest its text. What was typed goes to promptedit.
+  FileView {
+    id: promptFile
+    path: root.runtimeDir !== "" ? root.runtimeDir + "/kyrr/prompt" : ""
+    printErrors: false
+    watchChanges: true
+    onLoaded: {
+      var all = text()
+      var cut = all.indexOf("\n")
+      root.promptId = cut < 0 ? "" : all.slice(0, cut)
+      root.promptText = cut < 0 ? "" : all.slice(cut + 1)
+    }
+    onLoadFailed: { root.promptId = ""; root.promptText = "" }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: promptEditFile
+    path: root.runtimeDir !== "" ? root.runtimeDir + "/kyrr/promptedit" : ""
+    printErrors: false
+    blockWrites: true
+  }
+
+  // The open recording's text before and after the language model while the
+  // menu compares: the first line names the recording, the rest is a JSON
+  // list of {before, after} paragraphs in rich text.
+  FileView {
+    id: compareFile
+    path: root.runtimeDir !== "" ? root.runtimeDir + "/kyrr/compare" : ""
+    printErrors: false
+    watchChanges: true
+    onLoaded: {
+      var all = text()
+      var cut = all.indexOf("\n")
+      try {
+        var data = cut < 0 ? [] : JSON.parse(all.slice(cut + 1))
+        root.compareId = cut < 0 ? "" : all.slice(0, cut)
+        root.compareData = Array.isArray(data) ? data : []
+      } catch (e) {
+        // A read in the middle of kyrr's write: keep what was there.
+      }
+    }
+    onLoadFailed: { root.compareId = ""; root.compareData = [] }
+    onFileChanged: reload()
+  }
+
   FileView {
     id: editFile
     path: root.runtimeDir !== "" ? root.runtimeDir + "/kyrr/edit" : ""
@@ -514,6 +646,36 @@ Panel {
     id: widgetFile
     path: root.runtimeDir !== "" ? root.runtimeDir + "/kyrr-widget" : ""
     printErrors: false
+  }
+
+  // This plugin's version, from the manifest next to this file.
+  FileView {
+    id: manifestFile
+    path: root.updateScript.replace(/update\.sh$/, "manifest.json")
+    printErrors: false
+    onLoaded: {
+      try {
+        root.pluginVersion = String(JSON.parse(text()).version || "")
+      } catch (e) {
+        root.pluginVersion = ""
+      }
+    }
+  }
+
+  // The newest version on GitHub: its manifest, the same file.
+  Process {
+    id: pluginLook
+    command: ["curl", "-fsS", "--max-time", "10",
+      "https://raw.githubusercontent.com/heast13/omarchy-kyrr/main/manifest.json"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          root.pluginLatest = String(JSON.parse(text).version || "")
+        } catch (e) {
+          // No answer, or not a manifest: nothing new is known.
+        }
+      }
+    }
   }
 
   Process {
@@ -569,8 +731,9 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    // A recording's text gets room to be read.
-    contentWidth: panel.fittedContentWidth(Style.space(root.page.indexOf("text:") === 0 ? 520 : 360))
+    // A recording's text gets room to be read, twice as much beside the one
+    // before it.
+    contentWidth: panel.fittedContentWidth(Style.space(root.page.indexOf("text:") === 0 ? (root.comparing ? 1040 : 520) : 360))
     // As tall as the page needs: Omarchy keeps the card on the screen.
     contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(4000))
 
@@ -817,6 +980,7 @@ Panel {
                 width: rowColumn.width
                 sourceComponent: row.kind === "edit" ? editRow
                   : row.kind === "editor" ? editorRow
+                  : row.kind === "compare" ? compareRow
                   : row.kind === "section" ? sectionRow
                   : row.kind === "info" ? infoRow
                   : row.kind === "progress" ? progressRow
@@ -880,7 +1044,7 @@ Panel {
       leftPadding: Style.space(10)
       rightPadding: Style.space(10)
       textFormat: Text.PlainText
-      text: r.label || ""
+      text: r.live === "promptState" ? root.promptState() : r.label || ""
       color: r.body ? root.foreground : root.dim
       font.family: root.fontFamily
       font.pixelSize: r.body ? Style.font.body : Style.font.caption
@@ -1133,7 +1297,7 @@ Panel {
             readonly property color ink: b.urgent ? root.urgent : root.foreground
 
             hasCursor: root.cursorActive && root.cursor === buttonsItem.rowIndex && root.pick === index
-            opacity: b.enabled === false ? 0.45 : 1
+            opacity: root.buttonOff(b) ? 0.45 : 1
             bordered: true
             foreground: ink
             implicitWidth: buttonContent.implicitWidth + Style.space(20)
@@ -1308,14 +1472,130 @@ Panel {
     }
   }
 
-  // A recording's text, as in kyrr's text view: read it, correct it (kyrr
-  // saves it), select and copy it. Enter (or a click) goes in, Esc out.
+  // A recording's text before and after the language model, paragraph beside
+  // paragraph: what went in red on the left, what came in green on the right.
+  // Read only; the arrows scroll it while the cursor is on it.
+  Component {
+    id: compareRow
+    CursorSurface {
+      id: compareItem
+      readonly property int rowIndex: parent ? parent.rowIndex : -1
+      readonly property string memo: parent && parent.row.memo ? parent.row.memo : ""
+      readonly property bool haveData: root.compareId === memo
+      readonly property real columnGap: Style.space(24)
+
+      width: parent ? parent.width : 0
+      hasCursor: root.cursorActive && root.cursor === rowIndex
+      bordered: true
+      foreground: root.foreground
+      implicitHeight: Style.space(440)
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+        onEntered: root.pointAt(compareItem.rowIndex)
+      }
+
+      Text {
+        visible: !compareItem.haveData
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.margins: Style.space(12)
+        textFormat: Text.PlainText
+        text: root.t("compareLoading")
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Flickable {
+        id: compareFlick
+        visible: compareItem.haveData
+        anchors.fill: parent
+        anchors.margins: Style.space(10)
+        contentWidth: width
+        contentHeight: pairs.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        // One step of the arrow keys; false when it cannot go that way.
+        function scrollBy(dy) {
+          var to = Math.max(0, Math.min(contentHeight - height, contentY + dy * Style.space(48)))
+          if (to === contentY) return false
+          contentY = to
+          return true
+        }
+
+        Component.onCompleted: root.compareItem = compareFlick
+        Component.onDestruction: if (root.compareItem === compareFlick) root.compareItem = null
+
+        Column {
+          id: pairs
+          width: compareFlick.width
+          spacing: Style.space(12)
+
+          Row {
+            spacing: compareItem.columnGap
+            Repeater {
+              model: [root.t("compareOriginal"), root.t("compareNew")]
+              delegate: Text {
+                required property string modelData
+                width: (pairs.width - compareItem.columnGap) / 2
+                textFormat: Text.PlainText
+                text: modelData
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
+            }
+          }
+
+          Repeater {
+            model: compareItem.haveData ? root.compareData.length : 0
+            delegate: Row {
+              required property int index
+              readonly property var pair: root.compareData[index] || ({})
+              spacing: compareItem.columnGap
+
+              Text {
+                width: (pairs.width - compareItem.columnGap) / 2
+                textFormat: Text.RichText
+                text: parent.pair.before || ""
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                wrapMode: Text.Wrap
+              }
+
+              Text {
+                width: (pairs.width - compareItem.columnGap) / 2
+                textFormat: Text.RichText
+                text: parent.pair.after || ""
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                wrapMode: Text.Wrap
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // A text to read and correct. A recording's, as in kyrr's text view: kyrr
+  // saves it, you select and copy it. Or the instruction of one task of the
+  // language model (channel "prompt"): typed text stays until Save, and kept
+  // per task meanwhile. Enter (or a click) goes in, Esc out.
   Component {
     id: editorRow
     CursorSurface {
       id: editorItem
       readonly property int rowIndex: parent ? parent.rowIndex : -1
       readonly property string memo: parent && parent.row.memo ? parent.row.memo : ""
+      readonly property string channel: parent && parent.row && parent.row.channel ? parent.row.channel : "sheet"
       // The language model is working on the text: it is read-only meanwhile.
       readonly property bool locked: !!(parent && parent.row && parent.row.locked)
 
@@ -1327,7 +1607,7 @@ Panel {
       hasCursor: root.cursorActive && root.cursor === rowIndex && !area.activeFocus
       bordered: true
       foreground: root.foreground
-      implicitHeight: Style.space(440)
+      implicitHeight: Style.space(channel === "prompt" ? 200 : 440)
 
       // A click below the last line goes into the text too.
       MouseArea {
@@ -1360,6 +1640,10 @@ Panel {
           property var sent: null
           property bool loading: false
           readonly property string memo: editorItem.memo
+          readonly property string channel: editorItem.channel
+          // An instruction: the task shown and its text as kyrr has it.
+          property string shown: ""
+          property string base: ""
 
           width: flick.width
           wrapMode: TextEdit.Wrap
@@ -1375,7 +1659,39 @@ Panel {
 
           // kyrr's text of this recording, unless something typed is on its
           // way.
+          function put(value) {
+            if (text === value) return
+            var at = cursorPosition
+            loading = true
+            text = value
+            cursorPosition = Math.min(at, length)
+            loading = false
+          }
+
+          // The instruction of the task shown: another task brings the draft
+          // kept for it (the one left is kept), a new text from kyrr (saved,
+          // reset) replaces what is shown unless something is typed.
+          function loadPrompt() {
+            if (root.promptId === "" || root.promptId !== memo) return
+            var file = root.promptText
+            if (shown !== memo) {
+              if (shown !== "") {
+                if (text !== base) root.promptDrafts[shown] = text
+                else delete root.promptDrafts[shown]
+              }
+              shown = memo
+              base = file
+              put(root.promptDrafts[memo] !== undefined ? root.promptDrafts[memo] : file)
+              return
+            }
+            if (file === base) return
+            var edited = text !== base
+            base = file
+            if (!edited || text.trim() === file.trim()) put(file)
+          }
+
           function load() {
+            if (channel === "prompt") return loadPrompt()
             if (root.sheetId === "" || root.sheetId !== memo) return
             if (sent !== null) {
               if (root.sheetText !== sent) return
@@ -1394,16 +1710,21 @@ Panel {
             load()
           }
           Component.onDestruction: {
-            root.flushEdit()
+            if (channel === "prompt") {
+              if (shown !== "" && text !== base) root.promptDrafts[shown] = text
+            } else {
+              root.flushEdit()
+            }
             if (root.editorItem === area) root.editorItem = null
             if (activeFocus) root.typing = false
           }
+          onMemoChanged: load()
           onTextChanged: {
-            if (loading) return
+            if (loading || channel === "prompt") return
             dirty = true
             editTimer.restart()
           }
-          onCursorPositionChanged: cursorTimer.restart()
+          onCursorPositionChanged: if (channel !== "prompt") cursorTimer.restart()
           onCursorRectangleChanged: flick.follow(cursorRectangle)
           onActiveFocusChanged: {
             root.typing = activeFocus
@@ -1411,10 +1732,10 @@ Panel {
           }
           Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape) {
-              root.flushEdit()
+              if (channel !== "prompt") root.flushEdit()
               keyCatcher.forceActiveFocus()
               event.accepted = true
-            } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_C) {
+            } else if (channel !== "prompt" && (event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_C) {
               // Copied by kyrr, which leaves the times behind.
               root.copySheet()
               event.accepted = true
@@ -1427,6 +1748,8 @@ Panel {
         target: root
         function onSheetTextChanged() { area.load() }
         function onSheetIdChanged() { area.load() }
+        function onPromptTextChanged() { area.load() }
+        function onPromptIdChanged() { area.load() }
       }
 
       // Saved a moment after the last key, as in kyrr's window.

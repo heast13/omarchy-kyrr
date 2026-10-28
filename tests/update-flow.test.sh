@@ -164,6 +164,27 @@ expect_code 1
 expect_not_called "git "
 expect_not_called "omarchy-restart-shell"
 
+# A new menu on its own: kyrr stays as it is.
+run "plugin only" plugin
+expect_code 0
+expect_not_called "curl"
+expect_not_called "setsid -f $work/home/.local/bin/kyrr"
+expect_no_kyrr
+expect_order "omarchy plugin update $id --yes" "$restart"
+expect_not_called "omarchy plugin remove"
+
+prep() { checkout; }
+run "plugin only, plugin update fails: checkout set to the newest commit, shell restarts" plugin FAKE_UPDATE_FAIL=1
+expect_code 0
+expect_order "omarchy plugin update $id --yes" "git -C $dir fetch --quiet origin HEAD" "git -C $dir reset --quiet --hard FETCH_HEAD" "omarchy plugin validate $dir" "$restart"
+
+prep() { checkout; }
+run "plugin only, nothing works: one clear line, no restart" plugin FAKE_UPDATE_FAIL=1 FAKE_GITHUB_DOWN=1
+expect_code 1
+expect_not_called "omarchy-restart-shell"
+echo "$out" | grep -q "The menu could not be updated" || fail "no line about the plugin"
+echo "$out" | grep -q "kyrr is up to date" && fail "says kyrr was updated"
+
 run "checksum mismatch: kyrr untouched, nothing else" update FAKE_BAD_SUM=1
 [ "$code" -ne 0 ] || fail "exit code 0 on a checksum mismatch"
 expect_no_kyrr
