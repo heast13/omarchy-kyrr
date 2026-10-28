@@ -26,10 +26,10 @@ More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13
   adds a Local AI row to the menu. Its page sets your language model
   (address, model, key, a test), what it does to each dictation (fix
   mishearings, reword, professional) and the language it translates into.
-  With fix mishearings, a switch also lets it correct the word order, by
-  rearranging words only. The instruction the model gets for each task can
-  be read there, changed and saved, or set back to kyrr's. The same rework and
-  translation work on a recording's text, with "Restore original"; once reworked, the recording's
+  A switch lets fixing also correct the word order, by rearranging words
+  only. The instruction the model gets for each task can be read there,
+  changed and saved, or set back to kyrr's. The same rework and translation
+  work on a recording's text, with "Restore original"; once reworked, the recording's
   page can show the text beside the one before (View: Text | Compare; red is
   what changed, green what is worded anew). Setup > Own dictation model
   sends dictation to a speech server of your own.

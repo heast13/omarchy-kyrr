@@ -67,14 +67,14 @@ function aiCaption(a, t) {
 }
 
 // What reworking does and what it translates into, once a model is set up.
-// Fix mishearings (1) can also put the word order right (`fixOrder`, which
-// kyrr 0.8.1 and older do not have, so there is no switch then).
+// Fixing can also put the word order right (`fixOrder`, which kyrr 0.8.1 and
+// older do not have, so there is no switch then).
 function aiChoices(a, t) {
   var rows = [
     { kind: "choice", id: "rework", label: t("rework"),
       options: options(t, ["off", "reworkFix", "reworkPolish", "reworkBusiness"]), value: a.rework, cmd: "set ai.rework {}" }
   ]
-  if (a.fixOrder !== undefined && a.rework === 1)
+  if (a.fixOrder !== undefined)
     rows.push({ kind: "switch", id: "fixOrder", label: t("fixOrder"), checked: a.fixOrder, cmd: "toggle ai.fixOrder" })
   rows.push({ kind: "choice", id: "translate", label: t("translateInto"),
     options: targets(t), value: a.translate || "off", cmd: "set ai.translate {}" })
