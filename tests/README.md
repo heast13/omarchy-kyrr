@@ -42,7 +42,8 @@ does (without the `.pragma`) into a `vm` context.
 Runs `update.sh` with stub `curl`, `omarchy`, `git`, `setsid` and `fusermount3` first
 on `PATH` and a temporary `HOME`, and checks the calls: an install downloads,
 checks and installs kyrr only; an update also updates the plugin and restarts
-the shell; a plugin that cannot be updated is removed and cloned again; a bad
+the shell; a plugin that cannot be fast-forwarded is set to the newest commit in place
+(and set back when Omarchy refuses it), never removed; a bad
 checksum or a failed download leaves kyrr alone and does nothing else.
 
 ## Load (`bash tests/load/run.sh <omarchy checkout> 1366x768,1920x1080 <out folder>`)

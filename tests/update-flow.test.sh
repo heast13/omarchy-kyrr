@@ -40,14 +40,16 @@ stub omarchy '
 echo "omarchy $*" >>"$FAKE_LOG"
 case "$1 $2" in
 "plugin update") [ -z "${FAKE_UPDATE_FAIL:-}" ] ;;
-"plugin remove") [ -z "${FAKE_REMOVE_FAIL:-}" ] ;;
-"plugin add") [ -z "${FAKE_ADD_FAIL:-}" ] ;;
+"plugin validate") [ -z "${FAKE_VALIDATE_FAIL:-}" ] ;;
 esac'
-stub git 'echo "git $*" >>"$FAKE_LOG"; [ -z "${FAKE_GITHUB_DOWN:-}" ]'
+stub git '
+echo "git $*" >>"$FAKE_LOG"
+case " $* " in
+*" fetch "*) [ -z "${FAKE_GITHUB_DOWN:-}" ] ;;
+esac'
 stub setsid 'echo "setsid $*" >>"$FAKE_LOG"'
 printf '#!/bin/bash\nexit 0\n' >"$work/fuse/fusermount3"
 chmod +x "$work/fuse/fusermount3"
-stub omarchy-restart-shell 'echo "omarchy-restart-shell" >>"$FAKE_LOG"'
 
 fails=0
 fail() {
@@ -91,7 +93,6 @@ expect_clean_tmp() { ! compgen -G "$work/tmp.*" >/dev/null || fail "download fol
 
 url=https://github.com/heast13/kyrr/releases/latest/download
 id=io.github.heast13.kyrr
-repo=https://github.com/heast13/omarchy-kyrr.git
 
 run "install" install
 expect_code 0
@@ -111,38 +112,56 @@ echo "$out" | grep -q "needs FUSE" && fail "FUSE note although fusermount3 is th
 run "update" update
 expect_code 0
 expect_kyrr
-expect_order "setsid -f $work/home/.local/bin/kyrr" "omarchy plugin update $id --yes" "omarchy-restart-shell"
+expect_order "setsid -f $work/home/.local/bin/kyrr" "omarchy plugin update $id --yes" "setsid -f sh -c sleep 2; omarchy-restart-shell"
 expect_not_called "omarchy plugin remove"
 expect_not_called "omarchy plugin add"
 expect_clean_tmp
 
-run "update, plugin update fails: cloned again, shell restarts" update FAKE_UPDATE_FAIL=1
+restart="setsid -f sh -c sleep 2; omarchy-restart-shell"
+checkout() { mkdir -p "$work/home/.config/omarchy/plugins/$id/.git"; }
+dir=$work/home/.config/omarchy/plugins/$id
+not_updated="kyrr is up to date, but the menu could not be updated"
+
+prep() { checkout; }
+run "update, plugin update fails: checkout set to the newest commit, shell restarts" update FAKE_UPDATE_FAIL=1
 expect_code 0
 expect_kyrr
-expect_order "omarchy plugin update $id --yes" "git ls-remote $repo" "omarchy plugin remove $id --yes" "omarchy plugin add $repo --yes --enable" "omarchy-restart-shell"
+expect_order "omarchy plugin update $id --yes" "git -C $dir fetch --quiet origin HEAD" "git -C $dir reset --quiet --hard FETCH_HEAD" "omarchy plugin validate $dir" "$restart"
+expect_not_called "omarchy plugin remove"
+expect_not_called "omarchy plugin add"
+expect_not_called "ORIG_HEAD"
 
+prep() { checkout; }
+run "update, newest commit refused by Omarchy: undone, no restart" update FAKE_UPDATE_FAIL=1 FAKE_VALIDATE_FAIL=1
+expect_code 1
+expect_order "git -C $dir reset --quiet --hard FETCH_HEAD" "omarchy plugin validate $dir" "git -C $dir reset --quiet --hard ORIG_HEAD"
+expect_not_called "omarchy-restart-shell"
+[ "$(echo "$out" | grep -c "$not_updated")" = 1 ] || fail "not exactly one line about the menu"
+
+prep() { checkout; }
 run "update, plugin update fails and GitHub is down: plugin kept" update FAKE_UPDATE_FAIL=1 FAKE_GITHUB_DOWN=1
 expect_code 1
 expect_kyrr
-expect_not_called "omarchy plugin remove"
+expect_not_called "reset"
 expect_not_called "omarchy-restart-shell"
-echo "$out" | grep -q "kyrr is updated, but this menu plugin is not" || fail "no line about the plugin"
+echo "$out" | grep -q "$not_updated" || fail "no line about the menu"
 
-run "update, plugin update and add both fail: one clear line, no restart" update FAKE_UPDATE_FAIL=1 FAKE_ADD_FAIL=1
+run "update, plugin update fails, no git checkout: plugin kept" update FAKE_UPDATE_FAIL=1
 expect_code 1
-expect_kyrr
-expect_order "omarchy plugin remove $id --yes" "omarchy plugin add $repo --yes --enable"
+expect_not_called "git "
 expect_not_called "omarchy-restart-shell"
-[ "$(echo "$out" | grep -c "kyrr is updated, but this menu plugin is not")" = 1 ] || fail "not exactly one line about the plugin"
 
-# A link to a development checkout is never removed.
+run "update, German system: the line in German" update FAKE_UPDATE_FAIL=1 LANG=de_DE.UTF-8
+echo "$out" | grep -q "das Menü konnte nicht aktualisiert werden" || fail "no German line"
+
+# A link to a development checkout is never touched.
 prep() {
-  mkdir -p "$work/home/.config/omarchy/plugins" "$work/dev"
+  mkdir -p "$work/home/.config/omarchy/plugins" "$work/dev/.git"
   ln -s "$work/dev" "$work/home/.config/omarchy/plugins/$id"
 }
 run "update, plugin is a development link: left alone" update FAKE_UPDATE_FAIL=1
 expect_code 1
-expect_not_called "omarchy plugin remove"
+expect_not_called "git "
 expect_not_called "omarchy-restart-shell"
 
 run "checksum mismatch: kyrr untouched, nothing else" update FAKE_BAD_SUM=1

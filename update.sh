@@ -20,11 +20,10 @@ esac
 
 releases=https://github.com/heast13/kyrr/releases/latest/download/
 plugin_id=io.github.heast13.kyrr
-plugin_url=https://github.com/heast13/omarchy-kyrr.git
 
 # The steps run in a subshell, so a failed one still ends in Omarchy's done
 # message with its code, and the download folder always goes.
-d=$(mktemp -d)
+d=$(mktemp -d) || exit 1
 (
   set -e
   cd "$d"
@@ -44,19 +43,27 @@ rm -rf "$d"
 
 # An update of an installed kyrr brings this menu along, in the same window.
 # `omarchy plugin update` cannot fast-forward a checkout with local changes
-# or a detached head, and `omarchy plugin add` refuses a plugin that is
-# installed, so the plugin is then removed and cloned again, provided GitHub
-# answers (else the working copy would be lost for nothing) and it is not a
-# link to a development checkout.
+# or a detached head; the checkout is then set to the newest commit in place,
+# so the plugin stays enabled and keeps its place in the bar, and a commit
+# that Omarchy refuses is undone again. Removing and adding it would lose
+# both, and leave no menu at all when the add fails. A link to a development
+# checkout stays as it is.
+export GIT_TERMINAL_PROMPT=0
 plugin_dir=~/.config/omarchy/plugins/$plugin_id
-omarchy plugin update "$plugin_id" --yes || {
+fetch_again() {
+  [ ! -L "$plugin_dir" ] && [ -d "$plugin_dir/.git" ] || return 1
   echo "Updating the plugin did not work, fetching it again."
-  [ ! -L "$plugin_dir" ] && git ls-remote "$plugin_url" HEAD >/dev/null &&
-    omarchy plugin remove "$plugin_id" --yes &&
-    omarchy plugin add "$plugin_url" --yes --enable
-} || {
-  echo "kyrr is updated, but this menu plugin is not: run 'omarchy plugin update $plugin_id'," >&2
-  echo "or 'omarchy plugin add $plugin_url --enable' if it is gone." >&2
+  git -C "$plugin_dir" fetch --quiet origin HEAD &&
+    git -C "$plugin_dir" reset --quiet --hard FETCH_HEAD || return 1
+  omarchy plugin validate "$plugin_dir" && return 0
+  git -C "$plugin_dir" reset --quiet --hard ORIG_HEAD
+  return 1
+}
+omarchy plugin update "$plugin_id" --yes || fetch_again || {
+  case ${LANG:-} in
+  de*) echo "kyrr ist aktuell, aber das Menü konnte nicht aktualisiert werden. Es läuft wie bisher weiter." >&2 ;;
+  *) echo "kyrr is up to date, but the menu could not be updated. It keeps working as before." >&2 ;;
+  esac
   exit 1
 }
 
