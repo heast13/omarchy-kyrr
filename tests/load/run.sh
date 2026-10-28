@@ -25,10 +25,10 @@ cleanup() {
   local code=$?
   # What the run's page needs to say why it failed.
   if [ "$code" -ne 0 ]; then
-    echo "::group::quickshell log (first 150 lines, then the last 50)" >&2
-    head -n 150 "$out/qs.log" >&2 || true
+    echo "::group::quickshell log (first 40 lines, then the last 30)" >&2
+    head -n 40 "$out/qs.log" >&2 || true
     echo "..." >&2
-    tail -n 50 "$out/qs.log" >&2 || true
+    tail -n 30 "$out/qs.log" >&2 || true
     echo "::endgroup::" >&2
     echo "::group::sway log (last 30 lines)" >&2
     tail -n 30 "$out/sway.log" >&2 || true

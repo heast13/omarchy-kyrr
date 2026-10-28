@@ -1,6 +1,6 @@
 // Reads what the load job collected and says whether the menu passed.
 // Usage: node judge.mjs <folder>   (metrics.jsonl, qs.log, commands.log, run.log)
-import { readFileSync, existsSync, appendFileSync } from "node:fs"
+import { readFileSync, existsSync, appendFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { loadContract, matchCommand, root } from "../helpers.mjs"
 
@@ -86,5 +86,6 @@ if (scrolling.length) lines.push(``, `Pages that scroll on screens under ${FITS}
 if (failures.length) lines.push(``, `Problems:`, ...failures.slice(0, 60).map((s) => `- ${s}`))
 const summary = lines.join("\n")
 console.log(summary)
+writeFileSync(path.join(folder, "summary.md"), summary + "\n")
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n")
 process.exit(failures.length ? 1 : 0)

@@ -106,6 +106,16 @@ jobs:
         run: git clone --depth 1 --branch "${{ matrix.tag }}" https://github.com/basecamp/omarchy "$RUNNER_TEMP/omarchy"
       - name: Load the menu
         run: bash tests/load/run.sh "$RUNNER_TEMP/omarchy" 1366x768,1920x1080,2560x1440 load-out
+      - name: What the run saw
+        if: always()
+        run: |
+          cat load-out/summary.md || true
+          echo "--- quickshell log without INFO, unique lines"
+          grep -v '^  INFO' load-out/qs.log | sort | uniq -c | sort -rn | head -n 60 || true
+          echo "--- what reached the fake kyrr"
+          sort -u load-out/commands.log | head -n 60 || true
+          echo "--- what the menu would have run"
+          cat load-out/run.log || true
       - uses: actions/upload-artifact@v7
         if: always()
         with:
