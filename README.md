@@ -218,6 +218,13 @@ What kyrr's window does with Local AI and the menu does not (yet):
 - Reading and changing the wording of the instructions. The menu shows
   whether one is your own and sets it back to kyrr's.
 
+## Development
+
+CI checks that the plugin loads on Omarchy, that every page builds from every
+state kyrr writes, that the update flow works, and that the menu and kyrr
+agree on the socket's commands. Run the checks on your own machine as
+`tests/README.md` says.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

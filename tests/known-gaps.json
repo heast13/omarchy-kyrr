@@ -1,0 +1,7 @@
+[
+  {
+    "control": "callback open-update",
+    "command": "update page",
+    "why": "The window opens kyrr's download page when it cannot update itself (Linux AppImage). The menu does the update itself instead (update.sh swaps the AppImage), so it never sends it. Needs kyrr's contract to say windowOnly, or a row in the menu."
+  }
+]
