@@ -146,7 +146,7 @@ Panel {
   readonly property string releases: "https://github.com/heast13/kyrr/releases/latest/download/"
   // The steps run in a subshell, so a failed one still ends in Omarchy's
   // done message with its code, and the download folder always goes.
-  readonly property string installCommand: "d=$(mktemp -d); ( set -e; cd \"$d\"; "
+  readonly property string installSteps: "d=$(mktemp -d); ( set -e; cd \"$d\"; "
     + "curl -fLO " + releases + "kyrr-x86_64.AppImage; "
     + "curl -fLO " + releases + "kyrr-x86_64.AppImage.sha256; "
     + "sha256sum -c kyrr-x86_64.AppImage.sha256; "
@@ -155,7 +155,19 @@ Panel {
     + "command -v fusermount3 >/dev/null || command -v fusermount >/dev/null || "
     + "echo 'kyrr needs FUSE (package fuse3) to start.'; "
     + "setsid -f ~/.local/bin/kyrr --replace --background >/dev/null 2>&1 ); "
-    + "r=$?; rm -rf \"$d\"; (exit $r)"
+    + "r=$?; rm -rf \"$d\"; "
+  readonly property string installCommand: installSteps + "(exit $r)"
+
+  // An update of an installed kyrr brings this menu along, in the same
+  // window: the plugin is updated too (added again where updating does not
+  // work) and the shell restarts to load it, detached and after two seconds
+  // so the window can still say it is done. A first install needs neither.
+  readonly property string pluginId: "io.github.heast13.kyrr"
+  readonly property string pluginUrl: "https://github.com/heast13/omarchy-kyrr.git"
+  readonly property string updateCommand: installSteps
+    + "if [ $r -eq 0 ]; then "
+    + "omarchy plugin update " + pluginId + " --yes || omarchy plugin add " + pluginUrl + " --enable; "
+    + "setsid -f sh -c 'sleep 2; omarchy-restart-shell' >/dev/null 2>&1; fi; (exit $r)"
 
   function startKyrr() {
     if (!root.bar || root.running || !root.installed) return
@@ -241,7 +253,8 @@ Panel {
     if (!row || !Views.selectable(row)) return
     root.cursor = index
     if (row.id === "install") {
-      if (root.bar) root.bar.run("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote(root.installCommand))
+      if (root.bar) root.bar.run("omarchy-launch-floating-terminal-with-presentation "
+        + Util.shellQuote(root.installed ? root.updateCommand : root.installCommand))
       root.close()
       return
     }

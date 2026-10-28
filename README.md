@@ -33,8 +33,11 @@ More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13
 - **Not installed yet?** The menu offers "Install kyrr". It downloads the
   newest kyrr and its checksum from GitHub in a terminal, so you see every
   step, checks it and starts it. kyrr is one file, `~/.local/bin/kyrr`
-  (about 50 MB, plus the speech model it downloads in its setup). An older
-  kyrr gets an "Update kyrr" row the same way.
+  (about 50 MB, plus the speech model it downloads in its setup). A new kyrr
+  version shows an "Install update" row; one click updates kyrr, this plugin
+  (`omarchy plugin update`) and reloads the bar (`omarchy-restart-shell`) in
+  the same terminal window. An older kyrr gets an "Update kyrr" row the same
+  way. (From plugin 1.2.0 on; before that, update the plugin by hand once.)
 
 On Omarchy with this widget kyrr has no window and no tray icon. The widget
 starts kyrr; to switch kyrr off, disable the plugin in Omarchy's menu

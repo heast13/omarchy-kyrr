@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.heast13.kyrr",
   "name": "kyrr",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "heast13",
   "license": "MIT",
   "description": "kyrr in the bar: local noise suppression, dictation and voice memos, free and offline, all from one keyboard-driven menu.",
