@@ -44,7 +44,10 @@ on `PATH` and a temporary `HOME`, and checks the calls: an install downloads,
 checks and installs kyrr only; an update also updates the plugin and restarts
 the shell; a plugin that cannot be fast-forwarded is set to the newest commit in place
 (and set back when Omarchy refuses it), never removed; a bad
-checksum or a failed download leaves kyrr alone and does nothing else.
+checksum or a failed download leaves kyrr alone and does nothing else. The
+menu's look for a new plugin (`update.sh check`) only asks for the newest
+commit, prints it when the checkout lacks it, and downloads and changes
+nothing.
 
 ## Load (`bash tests/load/run.sh <omarchy checkout> 1366x768,1920x1080 <out folder>`)
 

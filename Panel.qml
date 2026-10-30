@@ -66,8 +66,9 @@ Panel {
   property var stack: ["main"]
   property var cursors: ({})
   readonly property string page: stack[stack.length - 1]
-  // This plugin's own version (its manifest.json) and the newest on GitHub
-  // ("" until looked), for a menu that is updated on its own.
+  // This plugin's own version (its manifest.json) and the newest commit on
+  // GitHub when this checkout does not have it ("" until looked or when
+  // current), for a menu that is updated on its own.
   property string pluginVersion: ""
   property string pluginLatest: ""
   property real pluginLookedAt: 0
@@ -180,7 +181,7 @@ Panel {
     root.close()
   }
 
-  // Whether GitHub has a newer version of this plugin. Only when asked or
+  // Whether GitHub has a newer commit of this plugin. Only when asked or
   // when kyrr's own automatic check is on, and at most every six hours.
   function lookForPlugin(force) {
     if (pluginLook.running || root.pluginVersion === "") return
@@ -662,19 +663,13 @@ Panel {
     }
   }
 
-  // The newest version on GitHub: its manifest, the same file.
+  // A newer commit of this plugin on GitHub, from update.sh: only its id,
+  // nothing is downloaded. No answer: nothing new is known.
   Process {
     id: pluginLook
-    command: ["curl", "-fsS", "--max-time", "10",
-      "https://raw.githubusercontent.com/heast13/omarchy-kyrr/main/manifest.json"]
+    command: ["bash", root.updateScript, "check"]
     stdout: StdioCollector {
-      onStreamFinished: {
-        try {
-          root.pluginLatest = String(JSON.parse(text).version || "")
-        } catch (e) {
-          // No answer, or not a manifest: nothing new is known.
-        }
-      }
+      onStreamFinished: root.pluginLatest = /^[0-9a-f]{40}$/.test(text.trim()) ? text.trim() : ""
     }
   }
 

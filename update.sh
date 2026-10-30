@@ -7,17 +7,34 @@
 #   update.sh install   kyrr only
 #   update.sh update    kyrr, then this plugin, then the shell restarts to load it
 #   update.sh plugin    this plugin only (a new menu, kyrr as it is), then the shell restarts
+#   update.sh check     prints the newest commit of this plugin on GitHub when
+#                       this checkout does not have it yet, else nothing
 #
 # It is a file of its own so tests/update-flow.test.sh can run it with stub
 # commands.
 
 case ${1:-} in
-install | update | plugin) mode=$1 ;;
+install | update | plugin | check) mode=$1 ;;
 *)
-  echo "usage: update.sh install|update|plugin" >&2
+  echo "usage: update.sh install|update|plugin|check" >&2
   exit 2
   ;;
 esac
+
+# The menu's look for a new plugin, quietly in the background: only the commit
+# GitHub has (`git ls-remote`, nothing is downloaded), the same one
+# `omarchy plugin update` would bring. A checkout that already has it, or is
+# ahead of it, gets nothing.
+if [ "$mode" = check ]; then
+  export GIT_TERMINAL_PROMPT=0
+  here=${0%/*}
+  current=$(git -C "$here" rev-parse HEAD 2>/dev/null) || exit 0
+  newest=$(timeout 10 git -C "$here" ls-remote origin HEAD 2>/dev/null | cut -f1) || exit 0
+  [ -n "$newest" ] && [ "$newest" != "$current" ] || exit 0
+  git -C "$here" merge-base --is-ancestor "$newest" HEAD 2>/dev/null && exit 0
+  echo "$newest"
+  exit 0
+fi
 
 releases=https://github.com/heast13/kyrr/releases/latest/download/
 plugin_id=io.github.heast13.kyrr

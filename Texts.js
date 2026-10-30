@@ -37,7 +37,7 @@ var de = {
   pluginOld: "kyrr ist neuer als dieses Plugin.",
   pluginOldHint: "Ein Klick oder Enter: Ein Fenster lädt das neue Plugin und die Leiste startet neu. kyrr und deine Einstellungen bleiben.",
   updatePlugin: "Plugin aktualisieren",
-  updatePluginHint: "Version {} des Plugins ist da. Ein Klick oder Enter: Ein Fenster lädt es und die Leiste startet neu. kyrr und deine Einstellungen bleiben.",
+  updatePluginHint: "Eine neue Version des Plugins ist da. Ein Klick oder Enter: Ein Fenster lädt sie und die Leiste startet neu. kyrr und deine Einstellungen bleiben.",
 
   filterStrength: "Filterstärke",
   gentle: "Sanft",
@@ -349,7 +349,7 @@ var en = {
   pluginOld: "kyrr is newer than this plugin.",
   pluginOldHint: "One click or Enter: a window downloads the new plugin and the bar restarts. kyrr and your settings stay.",
   updatePlugin: "Update plugin",
-  updatePluginHint: "Version {} of the plugin is out. One click or Enter: a window downloads it and the bar restarts. kyrr and your settings stay.",
+  updatePluginHint: "A new version of the plugin is out. One click or Enter: a window downloads it and the bar restarts. kyrr and your settings stay.",
 
   filterStrength: "Filter strength",
   gentle: "Gentle",

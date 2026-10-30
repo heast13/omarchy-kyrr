@@ -87,35 +87,32 @@ function mainRows(change, plugin) {
 }
 const noUpdate = (k) => { k.update.state = "latest" }
 
-test("versions are compared as dotted numbers", () => {
-  assert.equal(Views.newer("1.10.0", "1.9.9"), true)
-  assert.equal(Views.newer("1.3.0", "1.3"), false)
-  assert.equal(Views.newer("1.3.1", "1.3"), true)
-  assert.equal(Views.newer("1.2.0", "1.3.0"), false)
-  assert.equal(Views.newer("2", "1.9"), true)
-})
+const NEWEST = "0123456789abcdef0123456789abcdef01234567"
 
 test("a newer plugin on GitHub gets its own row, with kyrr as it is", () => {
-  const row = byId(mainRows(noUpdate, { version: "1.2.0", latest: "1.3.0" }), "installPlugin")
+  const row = byId(mainRows(noUpdate, { version: "1.2.0", latest: NEWEST }), "installPlugin")
   assert.ok(row, "no row for the new plugin")
   assert.equal(row.kind, "action")
-  assert.match(t("updatePluginHint", "1.3.0"), /1\.3\.0/)
 })
 
 test("no row while the plugin is current, unknown or not looked at", () => {
-  for (const plugin of [undefined, { version: "1.3.0", latest: "1.3.0" }, { version: "1.3.0", latest: "" }, { version: "", latest: "1.3.0" }, { version: "1.5.0", latest: "1.3.0" }])
+  for (const plugin of [undefined, { version: "1.3.0", latest: "" }, { version: "", latest: NEWEST }])
     assert.equal(byId(mainRows(noUpdate, plugin), "installPlugin"), undefined, JSON.stringify(plugin))
 })
 
 test("a new kyrr that updates the plugin with it hides the plugin-only row", () => {
-  const rows = mainRows((k) => { k.update.state = "available"; k.update.installable = false; k.update.dismissed = false }, { version: "1.2.0", latest: "1.3.0" })
+  const rows = mainRows((k) => { k.update.state = "available"; k.update.installable = false; k.update.dismissed = false }, { version: "1.2.0", latest: NEWEST })
   assert.ok(byId(rows, "install"))
   assert.equal(byId(rows, "installPlugin"), undefined)
 })
 
 test("Panel.qml runs update.sh with the mode the row asks for", () => {
   assert.match(panelQml, /runUpdate\(row\.id === "installPlugin" \? "plugin" : root\.installed \? "update" : "install"\)/)
-  assert.match(panelQml, /raw\.githubusercontent\.com\/heast13\/omarchy-kyrr\/main\/manifest\.json/)
+  // The look at GitHub asks update.sh for the newest commit and downloads
+  // nothing: the store's scan counts a download from this repository as a
+  // remote build, which would keep the plugin from its standard install.
+  assert.match(panelQml, /command: \["bash", root\.updateScript, "check"\]/)
+  assert.doesNotMatch(panelQml, /\bcurl\b|githubusercontent/)
   // The look at GitHub follows kyrr's own switch for automatic update checks.
   assert.match(panelQml, /!root\.kyrr\.general\.updateCheck/)
 })
