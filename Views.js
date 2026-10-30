@@ -219,20 +219,11 @@ function dictationHelp(k, t) {
   return rows
 }
 
-// Whether version `a` is newer than `b` (dotted numbers).
-function newer(a, b) {
-  var x = String(a).split("."), y = String(b).split(".")
-  for (var i = 0; i < Math.max(x.length, y.length); i++) {
-    var p = parseInt(x[i], 10) || 0, q = parseInt(y[i], 10) || 0
-    if (p !== q) return p > q
-  }
-  return false
-}
-
 // A new version of this plugin on GitHub (`plugin`: the one installed and the
-// newest, "" until looked), which the menu installs on its own, kyrr as it is.
+// newest commit this checkout lacks, "" until looked or when current), which
+// the menu installs on its own, kyrr as it is.
 function pluginUpdate(plugin) {
-  return !!(plugin && plugin.version && plugin.latest && newer(plugin.latest, plugin.version))
+  return !!(plugin && plugin.version && plugin.latest)
 }
 
 // A new version: install it (or where to get it), what is new, not now.
@@ -260,7 +251,7 @@ function updateRows(k, t, always, plugin) {
   var withKyrr = rows.some(function(row) { return row.id === "install" })
   if (pluginUpdate(plugin) && !withKyrr)
     rows.push({ kind: "action", id: "installPlugin", icon: GLYPH.update, accent: true,
-      label: t("updatePlugin"), caption: t("updatePluginHint", plugin.latest) })
+      label: t("updatePlugin"), caption: t("updatePluginHint") })
   return rows
 }
 

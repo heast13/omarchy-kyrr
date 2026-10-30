@@ -13,7 +13,7 @@ log=$work/calls.log
 
 # The only real commands update.sh may reach, so the machine running the
 # test (a FUSE package, say) cannot change the outcome.
-for tool in bash sh mktemp rm sha256sum mkdir install mv cat cut awk dirname env; do
+for tool in bash sh mktemp rm sha256sum mkdir install mv cat cut awk dirname env timeout; do
   ln -s "$(command -v $tool)" "$work/tools/$tool"
 done
 
@@ -46,6 +46,11 @@ stub git '
 echo "git $*" >>"$FAKE_LOG"
 case " $* " in
 *" fetch "*) [ -z "${FAKE_GITHUB_DOWN:-}" ] ;;
+*" rev-parse HEAD "*) echo "${FAKE_HEAD:-1111111111111111111111111111111111111111}" ;;
+*" ls-remote origin HEAD "*)
+  [ -z "${FAKE_GITHUB_DOWN:-}" ] || exit 128
+  printf "%s\\tHEAD\\n" "${FAKE_NEWEST:-1111111111111111111111111111111111111111}" ;;
+*" merge-base --is-ancestor "*) [ -n "${FAKE_AHEAD:-}" ] ;;
 esac'
 stub setsid 'echo "setsid $*" >>"$FAKE_LOG"'
 printf '#!/bin/bash\nexit 0\n' >"$work/fuse/fusermount3"
@@ -211,6 +216,30 @@ expect_clean_tmp
 run "install, download fails" install FAKE_CURL_FAIL=1
 [ "$code" -ne 0 ] || fail "exit code 0 on a failed download"
 expect_no_kyrr
+
+# The menu's look for a new plugin: only the commit, nothing downloaded,
+# nothing changed.
+newest=2222222222222222222222222222222222222222
+run "check, GitHub has a newer commit" check FAKE_NEWEST=$newest
+expect_code 0
+[ "$out" = "$newest" ] || fail "printed '$out', expected the newest commit"
+expect_called "git -C $root ls-remote origin HEAD"
+expect_not_called "curl"
+expect_not_called "fetch"
+expect_not_called "omarchy "
+expect_not_called "setsid"
+
+run "check, the checkout is current" check
+expect_code 0
+[ -z "$out" ] || fail "printed '$out' for a current checkout"
+
+run "check, the checkout is ahead of GitHub" check FAKE_NEWEST=$newest FAKE_AHEAD=1
+expect_code 0
+[ -z "$out" ] || fail "printed '$out' for a checkout ahead of GitHub"
+
+run "check, GitHub cannot be reached" check FAKE_GITHUB_DOWN=1
+expect_code 0
+[ -z "$out" ] || fail "printed '$out' without an answer from GitHub"
 
 run "unknown mode" bogus
 expect_code 2

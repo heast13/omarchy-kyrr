@@ -43,10 +43,11 @@ More about kyrr in general: [github.com/heast13/kyrr](https://github.com/heast13
   the same terminal window. An older kyrr gets an "Update kyrr" row the same
   way. (From plugin 1.2.0 on; before that, update the plugin by hand once.)
 - **A new plugin on its own.** When kyrr's "check for updates automatically"
-  is on, the menu asks GitHub (the plugin's `manifest.json`, at most every six
-  hours) whether this plugin has a newer version, and Setup > Check for
-  updates asks right away. If so, the menu offers "Update plugin": one click
-  loads it, reloads the bar and leaves kyrr as it is. (From plugin 1.4.0 on.)
+  is on, the menu asks GitHub (`git ls-remote`, only the id of the newest
+  commit, nothing is downloaded; at most every six hours) whether this plugin
+  has a newer commit, and Setup > Check for updates asks right away. If so,
+  the menu offers "Update plugin": one click loads it, reloads the bar and
+  leaves kyrr as it is. (From plugin 1.4.0 on.)
 
 On Omarchy with this widget kyrr has no window and no tray icon. The widget
 starts kyrr; to switch kyrr off, disable the plugin in Omarchy's menu
@@ -60,7 +61,7 @@ Dictation, Omarchy 4.5 and newer) and takes your theme's colours and font.
 - kyrr itself, which the menu installs: an AppImage, so it needs FUSE
   (`fuse3`, usually there through Nautilus), PipeWire, glibc 2.39 and, for the
   noise filter, a processor with AVX2.
-- `curl` and `socat`, both part of Omarchy.
+- `curl`, `git` and `socat`, all part of Omarchy.
 
 ## Install
 
@@ -69,14 +70,15 @@ omarchy plugin add https://github.com/heast13/omarchy-kyrr.git --enable
 ```
 
 Or in the Omarchy menu: Setup > Plugins > Add. Then click the kyrr icon in
-the bar.
+the bar and pick "Install kyrr": the menu installs kyrr itself and runs its
+first-run setup. Nothing else to do by hand.
 
 ## What kyrr changes on your system
 
 The widget writes nothing but `$XDG_RUNTIME_DIR/kyrr-widget` and, for what
 you type into a text, files beside kyrr's state (see "State"). Its only
-network call is the look at its own version on GitHub (see above). kyrr, once
-installed, adds:
+network call is the look at its own newest commit on GitHub (see above). kyrr,
+once installed, adds:
 
 - `~/.local/bin/kyrr`, and on Omarchy 4.5 and newer the scripts
   `~/.local/bin/omarchy-dictation-kyrr` and
