@@ -174,7 +174,8 @@ this version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
   language model and the speech server of your own. `features` (Setup >
   Experimental AI features: the menu shows Local AI only with it on), `on`
   (Local AI), `ready` (address and model are set), `rework` (0 off, 1 fix
-  mishearings, 2 reword, 3 professional), `translate` (language code, `""`
+  mishearings, 2 reword, 3 professional), `fixOrder` (fix mishearings also corrects
+  the word order, kyrr 0.8.2; absent before), `translate` (language code, `""`
   for none; the 17 languages `en de fr es it nl pt pl cs sk sv da no fi hu ro
   hr`), `url`, `model`, `models` (what the server offers, at most 30),
   `keySet` (whether a key is saved; the key itself is never in the state),
@@ -202,7 +203,7 @@ one.
 
 ### Commands
 
-- `toggle filter|voice|dictation|memos|voice.rumble|voice.pops|voice.distance|voice.autoLevel|memos.autoText|general.liveText|general.overload|general.updateCheck|listen|ai.features|ai.on`
+- `toggle filter|voice|dictation|memos|voice.rumble|voice.pops|voice.distance|voice.autoLevel|memos.autoText|general.liveText|general.overload|general.updateCheck|listen|ai.features|ai.on|ai.fixOrder`
 - `set filter.strength <0-2>`, `set voice.tone <name>`,
   `set voice.body|presence|air <dB>`, `set voice.comp|ess <0-3>`,
   `set voice.reset`, `set dictation.key|memos.key <keysym name>` (F1 to
