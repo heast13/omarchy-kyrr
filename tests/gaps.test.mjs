@@ -139,3 +139,13 @@ test("the word order switch shows only while fixing mishearings is chosen", () =
     if (row) assert.equal(row.label, "Satzstellung korrigieren")
   }
 })
+
+test("with the word order on, the instructions list names the fixing that includes it", () => {
+  for (const fixOrder of [false, true]) {
+    const k = clone(contract.state)
+    k.ai.features = true; k.ai.on = true; k.ai.ready = true; k.ai.fixOrder = fixOrder
+    const rows = Views.build("ai", k, t).rows
+    const prompt = byId(rows, "prompt")
+    assert.equal(prompt.options[0].label, fixOrder ? "Fehler ausbessern + Satzstellung" : "Fehler ausbessern")
+  }
+})

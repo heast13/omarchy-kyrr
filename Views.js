@@ -140,11 +140,13 @@ function ai(k, t) {
   rows.push({ kind: "info", label: t("modelTips") })
   // The instruction the language model gets for each task: read it, change
   // it and save it, or bring kyrr's own back.
+  // With the word order on, fixing has an instruction of its own (kyrr says
+  // which one it shows in `prompt`), and the list names it so.
   var p = a.prompt || { index: 0, own: false }
   rows.push({ kind: "separator" })
   rows.push({ kind: "info", label: t("promptsHint") })
   rows.push({ kind: "choice", id: "prompt", label: t("prompts"),
-    options: options(t, ["reworkFix", "reworkPolish", "reworkBusiness", "translate"]), value: p.index,
+    options: options(t, [a.fixOrder ? "reworkFixOrder" : "reworkFix", "reworkPolish", "reworkBusiness", "translate"]), value: p.index,
     cmd: "set ai.prompt {}" })
   if (p.index === 3) rows.push({ kind: "info", label: t("promptTarget", "{target}") })
   if (p.edit) {

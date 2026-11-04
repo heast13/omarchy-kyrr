@@ -181,7 +181,8 @@ this version brings), `probe` (`idle`, `recording`, `playing`), `hasProbe`,
   `keySet` (whether a key is saved; the key itself is never in the state),
   `busy` (asking the server), `note` (how the last test went), `found` (name
   of a server found on this computer, `""` for none), `prompt` (`index` 0 to 3:
-  fix, reword, professional, translate; `own`: that instruction is yours, not
+  fix, reword, professional, translate; with `fixOrder` on, 0 is the instruction
+  for fixing with the word order, which has its own wording and own state; `own`: that instruction is yours, not
   kyrr's; `edit`: the wording can be read and changed through the files below,
   absent in kyrr 0.8.0), and `asr`: the speech server, with `on` and the same `url`,
   `model`, `models`, `keySet`, `busy`, `note`, `found`
