@@ -128,3 +128,14 @@ test("a kyrr that hands over neither the wording nor the comparison gets the old
   assert.equal(byId(sheet, "view"), undefined)
   assert.ok(kinds(sheet).includes("editor"))
 })
+
+test("the word order switch shows only while fixing mishearings is chosen", () => {
+  for (const rework of [0, 1, 2, 3]) {
+    const k = clone(contract.state)
+    k.ai.features = true; k.ai.on = true; k.ai.ready = true; k.ai.fixOrder = false; k.ai.rework = rework
+    const rows = Views.build("main", k, t).rows
+    const row = byId(rows, "fixOrder")
+    assert.equal(!!row, rework === 1, `rework ${rework}`)
+    if (row) assert.equal(row.label, "Satzstellung korrigieren")
+  }
+})
