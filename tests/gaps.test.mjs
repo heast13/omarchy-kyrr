@@ -136,6 +136,6 @@ test("the word order switch shows only while fixing mishearings is chosen", () =
     const rows = Views.build("main", k, t).rows
     const row = byId(rows, "fixOrder")
     assert.equal(!!row, rework === 1, `rework ${rework}`)
-    if (row) assert.equal(row.label, "Satzstellung verbessern")
+    if (row) assert.equal(row.label, "Satzstellung korrigieren")
   }
 })
